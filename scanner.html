@@ -1,116 +1,337 @@
 <!doctype html>
 <html lang="bn">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#08111d">
-  <title>Gate Attendance Scanner</title>
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#070f22">
+  <title>গেট স্ক্যানার · School ID</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
   <style>
-    *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08111d;color:#fff;font-family:system-ui,"Noto Sans Bengali",sans-serif}
-    #qr-reader{position:absolute!important;inset:0;width:100%!important;height:100%!important;border:0!important;padding:0!important;background:#08111d!important}
-    #qr-reader video{width:100%!important;height:100%!important;object-fit:cover!important}
-    #qr-reader__dashboard,#qr-reader__status_span{display:none!important}
-    #qr-reader__scan_region{min-height:100%!important}
-    /* This page does not load Tailwind, so every layout rule is written out here. */
-    #topBar{position:absolute;top:0;left:0;right:0;z-index:3;padding:24px 20px 48px;background:linear-gradient(180deg,#000b,transparent);pointer-events:none}
-    #brand{font-weight:900;letter-spacing:.04em;font-size:18px}
-    #brand span{color:#6ee7b7}
-    #statusText{margin:6px 0 0;font-size:14px;color:#ffffffcc}
-    #resultOverlay{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;text-align:center;padding:28px}
-    #startPanel{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#020617;padding:28px;text-align:center}
-    #startPanel.show{display:flex}
-    #startPanel h1{margin:0;font-size:24px;font-weight:900}
-    #startError{margin:14px 0 0;color:#e2e8f0;line-height:1.6}
-    #startNote{margin:16px 0 0;font-size:12px;color:#94a3b8;line-height:1.6}
-    #startBtn{margin-top:24px;border:0;border-radius:16px;background:#2563eb;color:#fff;padding:16px 28px;font-weight:700;font-size:16px;cursor:pointer}
-    .viewfinder{position:absolute;z-index:2;left:50%;top:50%;width:min(72vw,340px);height:min(72vw,340px);transform:translate(-50%,-50%);border:3px solid white;border-radius:28px;box-shadow:0 0 0 9999px #06101a66,inset 0 0 24px #ffffff25;pointer-events:none}
-    .viewfinder:after{content:'QR কোড ফ্রেমে রাখুন, তারপর মুখটি ক্যামেরার সামনে রাখুন';position:absolute;left:-30px;right:-30px;top:calc(100% + 22px);text-align:center;color:white;font-weight:700;text-shadow:0 2px 10px #000}
+    html,body{margin:0;height:100%;overflow:hidden;background:#070f22;color:#fff;font-family:var(--font)}
+    #stage{position:fixed;inset:0}
+    #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    #overlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+    .scrim{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 42%, transparent 30%, rgba(4,9,20,.78) 78%)}
+    .top{position:absolute;top:0;left:0;right:0;z-index:5;padding:18px 18px 26px;background:linear-gradient(180deg,rgba(3,7,18,.86),transparent);display:flex;align-items:center;gap:12px}
+    .top .brandmark{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:var(--gold-soft)}
+    .top h1{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+    .top p{margin:2px 0 0;font-size:12px;color:#a8bcd8}
+    .clock{margin-left:auto;text-align:right}
+    .clock b{display:block;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+    .clock span{font-size:11px;color:#93a8c7}
+    .frame{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(74vw,330px);aspect-ratio:1;border-radius:26px;z-index:3;pointer-events:none;
+      box-shadow:0 0 0 3px rgba(255,255,255,.9), 0 0 0 9999px rgba(4,9,20,.32), inset 0 0 40px rgba(59,130,246,.18)}
+    .frame::before,.frame::after{content:"";position:absolute;width:46px;height:46px;border:4px solid var(--gold);border-radius:16px}
+    .frame::before{top:-6px;left:-6px;border-right:0;border-bottom:0}
+    .frame::after{bottom:-6px;right:-6px;border-left:0;border-top:0}
+    .scanline{position:absolute;left:10px;right:10px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#7fd1ff,#c8f3ff,#7fd1ff,transparent);box-shadow:0 0 18px #7fd1ff;animation:scan 2.6s ease-in-out infinite;top:14px}
+    @keyframes scan{0%,100%{top:14px;opacity:.2}50%{top:calc(100% - 16px);opacity:1}}
+    .hint{position:absolute;left:0;right:0;top:calc(46% + min(37vw,165px) + 18px);text-align:center;z-index:3;pointer-events:none;font-weight:700;font-size:14px;text-shadow:0 2px 12px #000}
+    .hint span{display:inline-block;padding:7px 16px;border-radius:999px;background:rgba(8,17,34,.66);border:1px solid rgba(255,255,255,.16)}
+    .dock{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:14px 16px calc(16px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center;background:linear-gradient(0deg,rgba(3,7,18,.9),transparent)}
+    .dock button{border-radius:14px;padding:12px 18px;font-weight:700;font-size:13.5px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;backdrop-filter:blur(10px)}
+    .dock button.primary{background:var(--brand);border-color:transparent}
+    .result{position:fixed;inset:0;z-index:30;display:none;place-items:center;padding:26px;text-align:center;background:#065f46}
+    .result.show{display:grid}
+    .result.fail{background:#9f1239}
+    .result .icon{font-size:66px;line-height:1}
+    .result h2{font-size:clamp(26px,7vw,42px);font-weight:800;margin:14px 0 0;letter-spacing:-.02em}
+    .result p{color:#ffffffdd;font-size:16px;margin-top:10px}
+    .result .meta{margin-top:18px;display:inline-grid;gap:6px;font-size:13px;color:#ffffffbb}
+    .start{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:#040a16;padding:26px;text-align:center}
+    .start.show{display:grid}
+    .start .card-inner{max-width:420px}
+    .start h2{font-size:24px;margin:0}
+    .start p{color:#a9bcd8;font-size:13.5px;line-height:1.6;margin-top:12px}
+    .startError{color:#fecaca;font-size:13px;margin-top:10px;line-height:1.6}
+    .start button{margin-top:22px;border:0;border-radius:14px;background:var(--brand);color:#fff;padding:14px 26px;font-weight:800;font-size:15px}
+    .manual{margin-top:18px;display:grid;gap:8px}
+    .manual input{border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff;padding:11px 14px;font-size:14px;text-align:center}
   </style>
 </head>
 <body>
-  <div id="qr-reader"></div>
-  <header id="topBar"><div id="brand">SCHOOL GATE <span>• ATTENDANCE</span></div><p id="statusText">ক্যামেরা চালু হচ্ছে…</p></header>
-  <div class="viewfinder"></div>
-  <div id="resultOverlay"><div><div id="resultIcon" style="font-size:72px;margin-bottom:20px">✓</div><h1 id="resultTitle" style="font-size:clamp(34px,9vw,56px);font-weight:900;line-height:1.1"></h1><p id="resultDetail" style="margin-top:16px;font-size:18px;color:#ffffffe6"></p></div></div>
-  <div id="startPanel"><div><h1>ক্যামেরা চালু হয়নি</h1><p id="startError"></p><button id="startBtn" type="button">আবার চেষ্টা করুন</button><p id="startNote">ক্যামেরার জন্য HTTPS লিংক ও camera permission দরকার। প্রথমবার face model ডাউনলোডে ইন্টারনেট দরকার।</p></div></div>
-  <canvas id="captureCanvas" style="display:none"></canvas>
-<script>
-  const API_BASE_URL = ""; // Render-এর /scanner route same-origin. অন্য host-এ দিলে Render URL বসান.
-  const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
-  const $ = id => document.getElementById(id);
-  let scanner = null, starting = null, locked = false, resetTimer = null, audioContext = null, modelsPromise = null;
+  <div id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlayCanvas"></canvas>
+    <div class="scrim"></div>
+    <header class="top">
+      <div class="brandmark" id="brandMark">S</div>
+      <div><h1 id="schoolName">গেট স্ক্যানার</h1><p id="statusText">ক্যামেরা চালু হচ্ছে…</p></div>
+      <div class="clock"><b id="clock">--:--</b><span id="todayLabel">আজ</span></div>
+    </header>
+    <div class="frame"><div class="scanline"></div></div>
+    <div class="hint" id="hint"><span id="hintText">কার্ডের QR ফ্রেমে ধরুন</span></div>
+    <div class="dock">
+      <button id="flipBtn" type="button">🔄 ক্যামেরা</button>
+      <button id="manualBtn" type="button">⌨ আইডি লিখুন</button>
+      <button id="soundBtn" type="button" class="primary" aria-pressed="true">🔔 শব্দ চালু</button>
+    </div>
+  </div>
 
-  // Models load in the background after the camera starts. A failed load is cleared so the next scan retries.
-  function loadModels(){
-    if(!modelsPromise){
-      if(typeof faceapi === 'undefined') return Promise.reject(new Error('Face library লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।'));
-      modelsPromise = Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)])
-        .catch(err => { modelsPromise = null; throw err; });
-    }
-    return modelsPromise;
-  }
-  function errText(e){ return `${e?.name||''} ${e?.message ?? e ?? ''}`; }
-  function isPermissionError(e){ return /NotAllowed|Permission|denied/i.test(errText(e)); }
-  function cameraErrorMessage(e){
-    const t = errText(e);
-    if(/InsecureContext/.test(t)) return 'ক্যামেরার জন্য HTTPS লিংক দরকার। https:// দিয়ে পেজটি খুলুন।';
-    if(/NoMediaDevices/.test(t)) return 'এই ব্রাউজারে ক্যামেরা সাপোর্ট নেই। Chrome বা Safari দিয়ে খুলুন।';
-    if(isPermissionError(e)) return 'ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের সাইট সেটিংস থেকে Camera → Allow করে পেজ রিলোড করুন।';
-    if(/NotFound|DevicesNotFound/i.test(t)) return 'এই ডিভাইসে ক্যামেরা পাওয়া যায়নি।';
-    if(/NotReadable|TrackStart|in use/i.test(t)) return 'ক্যামেরা অন্য অ্যাপ বা ট্যাবে ব্যবহার হচ্ছে। সেটি বন্ধ করে আবার চেষ্টা করুন।';
-    if(/Overconstrained/i.test(t)) return 'ক্যামেরা এই সেটিং সমর্থন করে না।';
-    return 'ক্যামেরা চালু হয়নি। ' + (e?.message ?? e ?? '');
-  }
-  function showStartError(e){
-    console.error(e);
-    $('statusText').textContent = 'ক্যামেরা চালু হয়নি';
-    $('startError').textContent = cameraErrorMessage(e);
-    $('startPanel').classList.add('show');
-  }
-  function sound(success){try{audioContext=audioContext||new(window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume();const osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.connect(gain);gain.connect(audioContext.destination);osc.type='sine';osc.frequency.value=success?880:210;gain.gain.setValueAtTime(.0001,audioContext.currentTime);gain.gain.exponentialRampToValueAtTime(.2,audioContext.currentTime+.03);gain.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+.42);osc.start();osc.stop(audioContext.currentTime+.43);if(success)setTimeout(()=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.connect(g);g.connect(audioContext.destination);o.frequency.value=1175;g.gain.setValueAtTime(.14,audioContext.currentTime);g.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+.3);o.start();o.stop(audioContext.currentTime+.31)},130)}catch(e){}}
-  function showResult(ok,title,detail=''){ $('resultOverlay').style.display='flex';$('resultOverlay').style.background=ok?'#047857':'#b91c1c';$('resultIcon').textContent=ok?'✓':'!';$('resultTitle').textContent=title;$('resultDetail').textContent=detail;sound(ok);clearTimeout(resetTimer);resetTimer=setTimeout(()=>{$('resultOverlay').style.display='none';$('statusText').textContent='পরবর্তী শিক্ষার্থীর জন্য প্রস্তুত';try{scanner?.resume()}catch(e){}locked=false},3000)}
-  async function descriptorFromLiveVideo(){
-    // The face image stays in this device's memory. No raw image leaves the browser.
-    await loadModels();
-    const video=document.querySelector('#qr-reader video');if(!video)throw new Error('লাইভ ক্যামেরা পাওয়া যায়নি।');
-    if(video.readyState<2)await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('ক্যামেরা প্রস্তুত হয়নি।')),2500);video.addEventListener('loadeddata',()=>{clearTimeout(t);resolve()},{once:true})});
-    const options=new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
-    const faces=await faceapi.detectAllFaces(video,options).withFaceLandmarks().withFaceDescriptors();
-    if(faces.length!==1)throw new Error(faces.length===0?'মুখ দেখা যায়নি—ক্যামেরার সামনে তাকান।':'ফ্রেমে একাধিক মুখ আছে—একজন করে স্ক্যান করুন।');
-    return Array.from(faces[0].descriptor);
-  }
-  async function handleQr(qrText){
-    if(locked)return;locked=true;$('statusText').textContent='QR পড়া হয়েছে • মুখ যাচাই হচ্ছে…';try{scanner.pause(false)}catch(e){}
-    try{
-      const descriptor=await descriptorFromLiveVideo();const response=await fetch(`${API_BASE_URL}/api/verify-attendance`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:qrText.trim(),face_descriptor:descriptor})});let result={};try{result=await response.json()}catch(e){}
-      if(response.ok&&result.status==='success')showResult(true,`Present: ${result.student_name}`,`ID: ${qrText.trim()}`);else{const reason=result.reason||result.detail||'Face Mismatch!';showResult(false,reason==='Face Mismatch!'?'Face Mismatch!':'যাচাই ব্যর্থ',reason)}
-    }catch(e){showResult(false,'যাচাই করা যায়নি',e.message||'নেটওয়ার্ক/ক্যামেরা সমস্যা।')}
-  }
-  // Camera is requested first, so the permission prompt and preview do not wait for the face models.
-  function startCamera(){
-    if(scanner?.isScanning)return Promise.resolve();
-    if(starting)return starting;
-    starting=(async()=>{
-      $('startPanel').classList.remove('show');
-      $('statusText').textContent='ক্যামেরা চালু হচ্ছে…';
-      if(!window.isSecureContext)throw new Error('InsecureContext');
-      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('NoMediaDevices');
-      if(!scanner)scanner=new Html5Qrcode('qr-reader',{verbose:false,formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]});
-      const config={fps:12,qrbox:(w,h)=>{const s=Math.floor(Math.min(w,h)*.68);return{width:s,height:s}},aspectRatio:1,disableFlip:true};
-      try{
-        await scanner.start({facingMode:'environment'},config,handleQr,()=>{});
-      }catch(e){
-        if(isPermissionError(e))throw e;
-        // Some devices have no rear camera; fall back to the front camera.
-        await scanner.start({facingMode:'user'},config,handleQr,()=>{});
+  <div class="result" id="result">
+    <div>
+      <div class="icon" id="resultIcon">✓</div>
+      <h2 id="resultTitle">উপস্থিতি</h2>
+      <p id="resultDetail"></p>
+      <div class="meta" id="resultMeta"></div>
+    </div>
+  </div>
+
+  <div class="start" id="startPanel">
+    <div class="card-inner">
+      <h2>ক্যামেরা চালু হয়নি</h2>
+      <p id="startError">ক্যামেরার অনুমতি দিন অথবা আইডি লিখে উপস্থিতি নিন।</p>
+      <div class="manual">
+        <input id="manualToken" placeholder="কার্ড টোকেন / QR টেক্সট" autocomplete="off">
+        <input id="manualId" placeholder="অথবা Student ID" autocomplete="off">
+      </div>
+      <button id="startBtn" type="button">আবার চেষ্টা করুন</button>
+      <button id="manualGo" type="button" style="background:rgba(255,255,255,.12);margin-left:8px">ম্যানুয়ালি চালান</button>
+      <p style="margin-top:16px;font-size:11.5px;color:#7f93b3">ক্যামেরার জন্য HTTPS দরকার। QR + লাইভ মুখ মিলিয়ে উপস্থিতি নেওয়া হয়; ছবি কোথাও আপলোড হয় না।</p>
+    </div>
+  </div>
+
+  <script src="/static/vendor/face-api.js"></script>
+  <script src="/static/vendor/jsQR.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    (function () {
+      const S = School;
+      const $ = S.$;
+      const video = $("video");
+      const canvas = $("overlayCanvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const state = { stream: null, running: false, busy: false, sound: true, facing: "environment", modelsReady: false, lastScan: 0, raf: 0 };
+      let audioCtx = null;
+
+      /* ---- UI bits ------------------------------------------------- */
+      function beep(kind) {
+        if (!state.sound) return;
+        try {
+          audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === "suspended") audioCtx.resume();
+          const seq = kind === "ok" ? [660, 990] : [300, 200];
+          seq.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = "sine"; osc.frequency.value = freq;
+            const t0 = audioCtx.currentTime + i * 0.16;
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+            osc.start(t0); osc.stop(t0 + 0.3);
+          });
+        } catch (e) {}
       }
-      $('statusText').textContent='QR কোড ফ্রেমে রাখুন';
-      loadModels().catch(()=>{if(!locked)$('statusText').textContent='Face model লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।'});
-    })().finally(()=>{starting=null});
-    return starting;
-  }
-  $('startBtn').addEventListener('click',()=>startCamera().catch(showStartError));
-  startCamera().catch(showStartError);
-</script>
-</body></html>
+
+      function showResult(ok, title, detail, meta) {
+        const r = $("result");
+        r.classList.toggle("fail", !ok);
+        $("resultIcon").textContent = ok ? "✓" : "!";
+        $("resultTitle").textContent = title;
+        $("resultDetail").textContent = detail || "";
+        $("resultMeta").innerHTML = meta || "";
+        r.classList.add("show");
+        beep(ok ? "ok" : "err");
+        setTimeout(() => {
+          r.classList.remove("show");
+          state.busy = false;
+          $("statusText").textContent = "পরবর্তী শিক্ষার্থীর জন্য প্রস্তুত";
+        }, ok ? 3200 : 3800);
+      }
+
+      function tickClock() {
+        const now = new Date();
+        $("clock").textContent = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" }).format(now);
+        $("todayLabel").textContent = S.fmtDate(now.toISOString(), { day: "numeric", month: "short" });
+      }
+      tickClock();
+      setInterval(tickClock, 15000);
+
+      /* ---- camera -------------------------------------------------- */
+      async function startCamera() {
+        $("startPanel").classList.remove("show");
+        $("statusText").textContent = "ক্যামেরা চালু হচ্ছে…";
+        try {
+          if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+          state.stream = await S.startCamera(video, { facing: state.facing });
+          await video.play().catch(() => {});
+          state.running = true;
+          $("statusText").textContent = "QR স্ক্যান হচ্ছে";
+          requestAnimationFrame(loop);
+          loadModels();
+        } catch (err) {
+          showStart(S.cameraErrorMessage(err));
+        }
+      }
+
+      function showStart(msg) {
+        $("startPanel").classList.add("show");
+        $("startError").textContent = msg || "ক্যামেরা চালু হয়নি";
+        $("statusText").textContent = "ক্যামেরা বন্ধ";
+      }
+
+      async function loadModels() {
+        try {
+          await S.loadModels();
+          state.modelsReady = true;
+          $("statusText").textContent = "QR স্ক্যান হচ্ছে • ফেস ভেরিফিকেশন প্রস্তুত";
+        } catch (e) {
+          $("statusText").textContent = "Face model লোড হয়নি — ইন্টারনেট দেখুন";
+        }
+      }
+
+      function fitCanvas() {
+        const w = video.videoWidth || 1280, h = video.videoHeight || 720;
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w; canvas.height = h;
+        }
+        return { w, h };
+      }
+
+      /* ---- scanning loop ------------------------------------------- */
+      async function loop() {
+        if (!state.running) return;
+        state.raf = requestAnimationFrame(loop);
+        if (state.busy || video.readyState < 2) return;
+        const now = performance.now();
+        if (now - state.lastScan < 260) return;
+        state.lastScan = now;
+        const { w, h } = fitCanvas();
+        ctx.drawImage(video, 0, 0, w, h);
+        let image = null;
+        try {
+          image = ctx.getImageData(0, 0, w, h);
+        } catch (e) {
+          return;
+        }
+        const code = window.jsQR ? jsQR(image.data, w, h, { inversionAttempts: "dontInvert" }) : null;
+        if (!code || !code.data) return;
+        await onCode(code.data);
+      }
+
+      function parseQr(text) {
+        // Accept a raw token, a /card?t=… URL, or a JSON blob.
+        const raw = String(text || "").trim();
+        if (!raw) return "";
+        try {
+          const u = new URL(raw);
+          const t = u.searchParams.get("t");
+          if (t) return t;
+        } catch (e) {}
+        try {
+          const j = JSON.parse(raw);
+          if (j && (j.card_token || j.token)) return j.card_token || j.token;
+        } catch (e) {}
+        return raw;
+      }
+
+      async function onCode(text) {
+        if (state.busy) return;
+        state.busy = true;
+        const token = parseQr(text);
+        $("statusText").textContent = "QR পড়া হয়েছে • মুখ যাচাই হচ্ছে…";
+        $("hintText").textContent = "ক্যামেরার দিকে তাকান…";
+        try {
+          let descriptor = null;
+          if (state.modelsReady || typeof faceapi !== "undefined") {
+            try {
+              descriptor = await descriptorFromVideo();
+            } catch (e) {
+              descriptor = null;
+              var faceErr = e.message;
+            }
+          }
+          const payload = { p_token: token };
+          if (descriptor) payload.p_descriptor = descriptor;
+          const res = await S.rpc("gate_attendance", payload);
+          if (!res || res.status !== "success") {
+            const reason = res?.reason || "যাচাই ব্যর্থ";
+            return showResult(false, reason === "Face Mismatch!" ? "Face Mismatch!" : "যাচাই ব্যর্থ", reason, faceErr ? `<span>${S.esc(faceErr)}</span>` : "");
+          }
+          const meta = `<span>${S.esc(res.class_name || "")}${res.section ? " • শাখা " + S.esc(res.section) : ""}</span>
+            <span>${res.already_marked ? "আজ আগেই উপস্থিতি নেওয়া হয়েছে" : "উপস্থিতি রেকর্ড হয়েছে — " + S.esc(res.time)}</span>
+            <span class="mono">ID: ${S.esc(res.student_id)} • দূরত্ব ${S.esc(String(res.distance ?? ""))}</span>`;
+          showResult(true, `উপস্থিত: ${res.student_name}`, res.already_marked ? "ডাবল স্ক্যান — আজকের রেকর্ড অপরিবর্তিত" : "শুভ সকাল! উপস্থিতি নেওয়া হয়েছে।", meta);
+          $("statusText").textContent = "উপস্থিতি রেকর্ড হয়েছে";
+        } catch (err) {
+          showResult(false, "সংযোগ সমস্যা", err.message || "নেটওয়ার্ক সমস্যা");
+        } finally {
+          $("hintText").textContent = "কার্ডের QR ফ্রেমে ধরুন";
+        }
+      }
+
+      async function descriptorFromVideo() {
+        if (!state.modelsReady) await S.loadModels();
+        if (video.readyState < 2) throw new Error("ক্যামেরা প্রস্তুত হয়নি।");
+        const faces = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+        if (faces.length === 0) throw new Error("মুখ দেখা যায়নি — ক্যামেরার সামনে তাকান।");
+        if (faces.length > 1) throw new Error("একাধিক মুখ — একজন করে স্ক্যান করুন।");
+        return Array.from(faces[0].descriptor);
+      }
+
+      /* ---- manual fallback ---------------------------------------- */
+      async function manualAttendance() {
+        const token = $("manualToken").value.trim() || parseQr($("manualToken").value.trim());
+        const id = $("manualId").value.trim();
+        if (!token && !id) return S.toast("টোকেন বা Student ID দিন।", "warn");
+        $("startPanel").classList.remove("show");
+        if (token) return runManual({ p_token: token });
+        // Student ID alone is not enough for face verification: the DB requires the card token.
+        S.toast("Student ID দিয়ে গেটে উপস্থিতি নেওয়া যায় না — কার্ডের QR টোকেন দিন।", "warn", 6000);
+        $("startPanel").classList.add("show");
+      }
+
+      async function runManual(args) {
+        state.busy = true;
+        try {
+          const res = await S.rpc("gate_attendance", args);
+          if (!res || res.status !== "success") {
+            return showResult(false, res?.reason === "Face Mismatch!" ? "Face Mismatch!" : "যাচাই ব্যর্থ", res?.reason || "কার্ডটি বৈধ নয়");
+          }
+          showResult(true, `উপস্থিত: ${res.student_name}`, res.already_marked ? "আজ আগেই উপস্থিতি নেওয়া হয়েছে" : "উপস্থিতি রেকর্ড হয়েছে", `<span>${S.esc(res.class_name || "")} • ${S.esc(res.time)}</span>`);
+        } catch (err) {
+          showResult(false, "সংযোগ সমস্যা", err.message);
+        }
+      }
+
+      /* ---- controls ----------------------------------------------- */
+      $("startBtn").addEventListener("click", startCamera);
+      $("manualGo").addEventListener("click", manualAttendance);
+      $("manualBtn").addEventListener("click", () => {
+        $("startPanel").classList.add("show");
+        $("startError").textContent = "কার্ডের QR টেক্সট বা টোকেন লিখে ম্যানুয়ালি উপস্থিতি নিন।";
+        $("manualToken").focus();
+      });
+      $("flipBtn").addEventListener("click", async () => {
+        state.facing = state.facing === "environment" ? "user" : "environment";
+        await startCamera();
+      });
+      $("soundBtn").addEventListener("click", () => {
+        state.sound = !state.sound;
+        $("soundBtn").textContent = state.sound ? "🔔 শব্দ চালু" : "🔕 শব্দ বন্ধ";
+        $("soundBtn").setAttribute("aria-pressed", String(state.sound));
+        if (state.sound) beep("ok");
+      });
+      $("manualToken").addEventListener("keydown", (e) => e.key === "Enter" && manualAttendance());
+      $("manualId").addEventListener("keydown", (e) => e.key === "Enter" && manualAttendance());
+
+      (async function init() {
+        try {
+          const settings = await S.rpc("public_settings");
+          if (settings && settings.school_name) {
+            $("schoolName").textContent = settings.school_name;
+            document.title = `গেট স্ক্যানার · ${settings.school_name}`;
+          }
+        } catch (e) {}
+        await startCamera();
+      })();
+    })();
+  </script>
+</body>
+</html>

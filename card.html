@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1730">
+  <title>কার্ড যাচাই · School ID</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="topbar no-print">
+    <div class="topbar-inner">
+      <div class="brandmark" id="brandMark">S</div>
+      <div><div class="brand-title" id="brandName">কার্ড যাচাই</div><div class="brand-sub">Verify</div></div>
+      <nav class="topnav">
+        <a href="/">হোম</a>
+        <a href="/admin">অ্যাডমিন</a>
+        <a href="/cards">কার্ড প্রিন্ট</a>
+        <a href="/scanner">গেট স্ক্যানার</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell" style="max-width:620px">
+    <div id="verifyArea" class="mt-22">
+      <div class="card empty">যাচাই হচ্ছে…</div>
+    </div>
+  </main>
+
+  <script src="/static/vendor/qrcode.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/card.js"></script>
+  <script>
+    (async function () {
+      const S = School;
+      const token = new URLSearchParams(location.search).get("t") || "";
+      const area = S.$("verifyArea");
+      if (!token) {
+        area.innerHTML = `<div class="card empty"><b>টোকেন নেই</b>কার্ডের QR স্ক্যান করুন অথবা কার্ড টোকেন দিয়ে লিংক খুলুন।</div>`;
+        return;
+      }
+      try {
+        const res = await S.rpc("public_student_by_token", { p_token: token });
+        if (!res || res.status !== "success") {
+          area.innerHTML = `<div class="card card-pad" style="border-color:#ffd5df;background:var(--danger-soft)">
+            <div class="pill pill-danger">অবৈধ কার্ড</div>
+            <h1 class="page-title" style="font-size:24px;margin-top:10px">কার্ডটি খুঁজে পাওয়া যায়নি</h1>
+            <p class="card-note">QR টোকেন সঠিক নয় অথবা কার্ডটি রিনিউ করা হয়েছে। স্কুল অফিসে যোগাযোগ করুন।</p></div>`;
+          return;
+        }
+        const expired = res.valid_until && new Date(res.valid_until) < new Date();
+        const inactive = res.active === false;
+        const settings = {
+          school_name: res.school_name,
+          school_name_en: res.school_name_en,
+          address: res.address,
+          phone: res.phone,
+          theme_color: res.theme_color,
+          logo_data: res.logo_data,
+        };
+        document.title = `যাচাই · ${res.name}`;
+        S.$("brandName").textContent = res.school_name || "কার্ড যাচাই";
+        if (res.logo_data) S.$("brandMark").innerHTML = `<img src="${res.logo_data}" alt="">`;
+        else S.$("brandMark").textContent = (res.school_name_en || res.school_name || "S").slice(0, 1);
+
+        const badge = expired
+          ? '<span class="pill pill-warn">মেয়াদ শেষ</span>'
+          : inactive
+          ? '<span class="pill pill-danger">নিষ্ক্রিয় কার্ড</span>'
+          : '<span class="pill pill-ok">✓ বৈধ কার্ড</span>';
+
+        area.innerHTML = `
+          <div class="card card-pad">
+            <div class="flex between center gap-10 wrap">
+              <div class="eyebrow">কার্ড যাচাই</div>${badge}
+            </div>
+            <h1 class="page-title" style="font-size:26px">${S.esc(res.name)}</h1>
+            <p class="page-lede" style="font-size:13.5px">${S.esc(res.school_name)} • ${S.esc(res.class_name)}${res.section ? " (" + S.esc(res.section) + ")" : ""}</p>
+          </div>
+          <div class="card-stage mt-16" style="border-radius:18px;border:1px solid var(--line)">
+            ${SchoolCard.render(res, settings, {})}
+          </div>
+          <div class="card card-pad mt-16">
+            <h2 class="card-title" style="font-size:16px">যাচাইকৃত তথ্য</h2>
+            <dl class="small" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:12px 0 0">
+              <div><dt class="tiny muted">Student ID</dt><dd class="mono" style="margin:0;font-weight:700">${S.esc(res.student_id)}</dd></div>
+              <div><dt class="tiny muted">শ্রেণি</dt><dd style="margin:0;font-weight:700">${S.esc(res.class_name)}${res.section ? " / " + S.esc(res.section) : ""}</dd></div>
+              <div><dt class="tiny muted">রোল</dt><dd style="margin:0;font-weight:700">${S.esc(res.roll_no || "—")}</dd></div>
+              <div><dt class="tiny muted">মেয়াদ</dt><dd style="margin:0;font-weight:700">${res.valid_until ? S.fmtDate(res.valid_until) : "—"}</dd></div>
+            </dl>
+            <p class="tiny muted mt-16">এই পেজটি Supabase ডেটাবেস থেকে লাইভ যাচাই করেছে — ${S.fmtDate(new Date().toISOString(), { dateStyle: "short", timeStyle: "short" })}।</p>
+          </div>`;
+      } catch (err) {
+        area.innerHTML = `<div class="card empty"><b>যাচাই করা যায়নি</b>${S.esc(err.message)}</div>`;
+      }
+    })();
+  </script>
+</body>
+</html>

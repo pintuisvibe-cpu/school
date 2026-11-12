@@ -1,107 +1,251 @@
 <!doctype html>
 <html lang="bn">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>স্কুল অ্যাটেনডেন্স · Admin</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <style>
-    body{background:#f4f7fb;color:#14213d;font-family:ui-sans-serif,system-ui,"Noto Sans Bengali",sans-serif}.card{background:white;border:1px solid #e7edf5;border-radius:20px;box-shadow:0 8px 30px #19365b0b}.field{width:100%;border:1px solid #dbe3ef;border-radius:12px;padding:11px 13px;outline:none;background:white}.field:focus{border-color:#2563eb;box-shadow:0 0 0 3px #2563eb1a}button{cursor:pointer}.table-wrap{overflow:auto}th,td{padding:12px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid #edf1f6}
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1730">
+  <title>অ্যাডমিন প্যানেল · School ID</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-3"><div><p class="text-xs uppercase tracking-[.22em] text-blue-600 font-bold">SCHOOL • ATTENDANCE</p><h1 class="text-xl md:text-2xl font-extrabold mt-1">অ্যাডমিন ড্যাশবোর্ড</h1></div><button id="refreshBtn" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">⟳ রিফ্রেশ</button></div></header>
-  <main class="max-w-7xl mx-auto p-5 md:p-8 grid lg:grid-cols-[.9fr_1.1fr] gap-6">
-    <section class="card p-5 md:p-7">
-      <div class="mb-5"><p class="text-sm font-bold text-blue-600">নতুন শিক্ষার্থী</p><h2 class="text-2xl font-extrabold mt-1">রেজিস্ট্রেশন ও QR</h2><p class="text-sm text-slate-500 mt-2">Face model ব্রাউজারে চলে। ছবি বা face descriptor কোনো paid recognition API-তে পাঠানো হয় না।</p></div>
-      <form id="registerForm" class="space-y-4">
-        <label class="block text-sm font-semibold">Student ID<input class="field mt-1.5" name="student_id" required maxlength="64" autocomplete="off" placeholder="যেমন: STU-1001"></label>
-        <label class="block text-sm font-semibold">পূর্ণ নাম<input class="field mt-1.5" name="name" required maxlength="160" placeholder="শিক্ষার্থীর নাম"></label>
-        <label class="block text-sm font-semibold">শ্রেণি<input class="field mt-1.5" name="class_name" required maxlength="80" placeholder="যেমন: Class 5 - A"></label>
-        <label class="block text-sm font-semibold">রেজিস্ট্রেশন ছবি <span class="font-normal text-slate-500">(JPEG/PNG)</span><input class="field mt-1.5" id="photoInput" type="file" accept="image/jpeg,image/png"></label>
-        <div class="flex gap-2"><button type="button" id="cameraBtn" class="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">ওয়েবক্যাম</button><button type="button" id="captureBtn" class="hidden rounded-xl bg-blue-50 text-blue-700 px-4 py-2.5 font-semibold">ছবি তুলুন</button></div>
-        <video id="webcam" class="hidden w-full max-h-64 rounded-xl bg-slate-900 object-cover" autoplay playsinline></video><canvas id="captureCanvas" class="hidden"></canvas>
-        <label class="flex gap-2 items-start text-xs text-slate-600"><input id="consent" type="checkbox" required class="mt-0.5"><span>আমি নিশ্চিত করছি যে অভিভাবকের অবহিত সম্মতি আছে। face descriptor বায়োমেট্রিক তথ্য হিসেবে বিবেচিত হবে।</span></label>
-        <button id="submitBtn" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-3 font-bold">শিক্ষার্থী রেজিস্টার করুন</button>
+  <header class="topbar no-print">
+    <div class="topbar-inner">
+      <div class="brandmark" id="brandMark">S</div>
+      <div>
+        <div class="brand-title" id="brandName">স্কুল আইডি কার্ড</div>
+        <div class="brand-sub">Admin Console</div>
+      </div>
+      <nav class="topnav">
+        <a href="/">হোম</a>
+        <a href="/admin" class="active">অ্যাডমিন</a>
+        <a href="/cards">কার্ড প্রিন্ট</a>
+        <a href="/scanner">গেট স্ক্যানার</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Login gate -->
+  <main class="shell" id="loginView">
+    <div class="card card-pad" style="max-width:440px;margin:58px auto 0">
+      <div class="eyebrow">অ্যাডমিন প্রবেশ</div>
+      <h1 class="page-title" style="font-size:26px">PIN দিয়ে প্রবেশ করুন</h1>
+      <p class="page-lede" style="font-size:13.5px">শিক্ষার্থী ও উপস্থিতি ডেটা সুরক্ষিত। ডিফল্ট PIN <b class="mono">123456</b> — প্রবেশের পর সেটিংস থেকে বদলে নিন।</p>
+      <form id="loginForm" class="mt-22">
+        <label class="field-group">
+          <span class="field-label">অ্যাডমিন PIN</span>
+          <input class="field" id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••••" required>
+        </label>
+        <button class="btn btn-primary btn-block mt-16" id="loginBtn" type="submit">প্রবেশ করুন</button>
       </form>
-      <div id="registerMessage" class="mt-4 text-sm" role="status"></div>
-      <div id="qrCard" class="hidden mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center"><p id="qrName" class="font-bold"></p><div id="qrcode" class="my-4 inline-flex bg-white p-3 rounded-xl"></div><p id="qrId" class="text-sm text-slate-500"></p><button id="downloadQr" class="mt-2 rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">QR ডাউনলোড</button></div>
+      <p class="tiny muted mt-16">PIN শুধু এই ব্রাউজার সেশনেই থাকে (sessionStorage); কোনো কুকি নয়।</p>
+    </div>
+  </main>
+
+  <!-- App -->
+  <main class="shell hidden" id="appView">
+    <div class="page-head no-print">
+      <div>
+        <div class="eyebrow">অ্যাডমিন কনসোল</div>
+        <h1 class="page-title" id="pageSchool">ড্যাশবোর্ড</h1>
+        <p class="page-lede" id="pageSub">শিক্ষার্থী, আইডি কার্ড ও উপস্থিতি — সব এক জায়গায়।</p>
+      </div>
+      <div class="flex gap-10 wrap">
+        <button class="btn btn-ghost" id="lockBtn">লগআউট</button>
+        <a class="btn btn-ghost" href="/scanner" target="_blank" rel="noopener">গেট স্ক্যানার ↗</a>
+      </div>
+    </div>
+
+    <div class="tabs no-print" role="tablist" id="tabs">
+      <button class="tab" role="tab" data-tab="overview" aria-selected="true">ড্যাশবোর্ড</button>
+      <button class="tab" role="tab" data-tab="students" aria-selected="false">শিক্ষার্থী</button>
+      <button class="tab" role="tab" data-tab="attendance" aria-selected="false">উপস্থিতি</button>
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">স্কুল ও সেটিংস</button>
+    </div>
+
+    <!-- Overview -->
+    <section class="panel" id="panel-overview">
+      <div class="grid grid-3 mt-22">
+        <div class="card card-pad"><div class="eyebrow">শিক্ষার্থী</div><div class="page-title" id="kpiStudents" style="font-size:30px">—</div><p class="card-note">সক্রিয় নিবন্ধিত</p></div>
+        <div class="card card-pad"><div class="eyebrow" style="color:var(--ok)">আজ উপস্থিত</div><div class="page-title" id="kpiPresent" style="font-size:30px">—</div><p class="card-note" id="kpiPct">—</p></div>
+        <div class="card card-pad"><div class="eyebrow" style="color:var(--warn)">কমেছে</div><div class="page-title" id="kpiAbsent" style="font-size:30px">—</div><p class="card-note">আজ অনুপস্থিত</p></div>
+      </div>
+      <div class="grid grid-side mt-22">
+        <section class="card card-pad">
+          <div class="card-head"><div><h2 class="card-title">আজকের উপস্থিতি</h2><p class="card-note" id="ovDate"></p></div><button class="btn btn-ghost btn-sm" id="ovRefresh">রিফ্রেশ</button></div>
+          <div class="table-wrap"><table><thead><tr><th>শিক্ষার্থী</th><th>শ্রেণি</th><th>সময়</th><th>পদ্ধতি</th></tr></thead><tbody id="ovRows"></tbody></table></div>
+        </section>
+        <section class="card card-pad">
+          <h2 class="card-title">দ্রুত কাজ</h2>
+          <div class="grid mt-16" style="gap:10px">
+            <button class="btn btn-dark btn-block" id="quickAdd">＋ নতুন শিক্ষার্থী</button>
+            <a class="btn btn-ghost btn-block" href="/cards">আইডি কার্ড প্রিভিউ ও প্রিন্ট</a>
+            <a class="btn btn-ghost btn-block" href="/scanner" target="_blank" rel="noopener">গেট স্ক্যানার চালু</a>
+            <button class="btn btn-ghost btn-block" id="quickCsv">আজকের CSV ডাউনলোড</button>
+          </div>
+          <hr class="divider">
+          <h3 class="card-title" style="font-size:15px">নিরাপত্তা</h3>
+          <ul class="small muted" style="padding-left:18px;margin:8px 0 0;display:grid;gap:6px">
+            <li>ডেটাবেসে RLS চালু; শুধু PIN-সুরক্ষিত RPC দিয়ে লেখাপড়া হয়।</li>
+            <li>মুখের descriptor বায়োমেট্রিক — অভিভাবকের সম্মতি ছাড়া নিবন্ধন নয়।</li>
+            <li>কার্ডের QR টোকেন ব্যক্তিগত; নতুন টোকেন দিয়ে পুরোনো কার্ড বাতিল করা যায়।</li>
+          </ul>
+        </section>
+      </div>
     </section>
-    <section class="card p-5 md:p-7">
-      <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm">CSV ডাউনলোড</button></div></div>
-      <div id="reportMessage" class="text-sm text-slate-500 mb-3"></div><div class="table-wrap rounded-xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম</th><th>তারিখ</th><th>সময়</th><th>অবস্থা</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-slate-500 py-8">লোড হচ্ছে…</td></tr></tbody></table></div>
-      <p class="text-xs text-slate-400 mt-4">শিক্ষার্থীর তথ্য সীমিত প্রবেশাধিকারে রাখুন।</p>
+
+    <!-- Students -->
+    <section class="panel hidden" id="panel-students">
+      <div class="grid grid-side mt-22">
+        <section class="card card-pad">
+          <div class="card-head">
+            <div><h2 class="card-title">শিক্ষার্থী তালিকা</h2><p class="card-note" id="studentsCount">—</p></div>
+            <div class="flex gap-6 wrap">
+              <input class="field" id="studentSearch" placeholder="নাম / ID / শ্রেণি খুঁজুন" style="width:210px">
+              <button class="btn btn-ghost btn-sm" id="exportStudents">CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>শিক্ষার্থী</th><th>শ্রেণি</th><th>Card No.</th><th>ফেস</th><th>কার্ড</th><th></th></tr></thead>
+            <tbody id="studentsRows"></tbody>
+          </table></div>
+        </section>
+
+        <section class="card card-pad" id="editorCard">
+          <div class="card-head">
+            <div><h2 class="card-title" id="editorTitle">নতুন শিক্ষার্থী</h2><p class="card-note">ছবি + মুখের ছাপ দিলে গেটে ফেস ভেরিফিকেশন চালু হবে।</p></div>
+            <button class="btn btn-ghost btn-sm hidden" id="cancelEdit">বাতিল</button>
+          </div>
+          <form id="studentForm">
+            <input type="hidden" id="fOriginalId">
+            <div class="form-grid">
+              <label class="field-group"><span class="field-label">Student ID *</span><input class="field mono" id="fStudentId" required placeholder="STU-1006" autocomplete="off"></label>
+              <label class="field-group"><span class="field-label">Card No.</span><input class="field mono" id="fCardNo" placeholder="স্বয়ংক্রিয়" disabled></label>
+              <label class="field-group span-2"><span class="field-label">পূর্ণ নাম *</span><input class="field" id="fName" required placeholder="শিক্ষার্থীর নাম"></label>
+              <label class="field-group"><span class="field-label">শ্রেণি *</span><input class="field" id="fClass" required placeholder="Class 8" list="classList"></label>
+              <datalist id="classList"><option value="Class 6"><option value="Class 7"><option value="Class 8"><option value="Class 9"><option value="Class 10"></datalist>
+              <label class="field-group"><span class="field-label">শাখা</span><input class="field" id="fSection" placeholder="A"></label>
+              <label class="field-group"><span class="field-label">রোল</span><input class="field" id="fRoll" placeholder="01"></label>
+              <label class="field-group"><span class="field-label">রক্তের গ্রুপ</span><select class="select" id="fBlood"><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></label>
+              <label class="field-group"><span class="field-label">জন্ম তারিখ</span><input class="field" id="fDob" type="date"></label>
+              <label class="field-group"><span class="field-label">মোবাইল</span><input class="field" id="fPhone" placeholder="01XXXXXXXXX"></label>
+              <label class="field-group"><span class="field-label">শিক্ষাবর্ষ</span><input class="field" id="fSession" placeholder="2026"></label>
+              <label class="field-group"><span class="field-label">কার্ডের মেয়াদ</span><input class="field" id="fValid" type="date"></label>
+              <label class="field-group"><span class="field-label">পিতার নাম</span><input class="field" id="fFather"></label>
+              <label class="field-group"><span class="field-label">মাতার নাম</span><input class="field" id="fMother"></label>
+              <label class="field-group span-2"><span class="field-label">ঠিকানা</span><input class="field" id="fAddress"></label>
+            </div>
+
+            <hr class="divider">
+            <div class="section-label">ছবি ও মুখের ছাপ</div>
+            <div class="flex gap-14 wrap" style="align-items:flex-start">
+              <div style="position:relative;width:104px;height:122px;border-radius:14px;overflow:hidden;border:2px dashed #cfdcee;background:#f6f9ff;display:grid;place-items:center;flex:0 0 auto">
+                <img id="photoPreview" class="hidden" style="width:100%;height:100%;object-fit:cover" alt="ছবি প্রিভিউ">
+                <span id="photoPlaceholder" class="tiny muted" style="text-align:center;padding:6px">ছবি নেই</span>
+              </div>
+              <div style="flex:1;min-width:190px">
+                <input type="file" id="photoFile" accept="image/*" class="hidden">
+                <div class="flex gap-6 wrap">
+                  <button type="button" class="btn btn-ghost btn-sm" id="pickPhotoBtn">ছবি আপলোড</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="camBtn">ওয়েবক্যাম</button>
+                  <button type="button" class="btn btn-primary btn-sm hidden" id="snapBtn">📸 ছবি তুলুন</button>
+                </div>
+                <video id="video" class="hidden" autoplay playsinline muted style="width:100%;max-height:230px;border-radius:14px;margin-top:10px;background:#0b1730;object-fit:cover"></video>
+                <p class="tiny muted mt-6" id="faceStatus">মুখের descriptor এখনো তৈরি হয়নি।</p>
+                <label class="flex gap-6 tiny mt-10" style="align-items:flex-start">
+                  <input type="checkbox" id="consent" style="margin-top:3px">
+                  <span>অভিভাবকের অবহিত সম্মতি আছে — মুখের বায়োমেট্রিক descriptor সংরক্ষণে অনুমতি দিলাম।</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex gap-10 mt-16 wrap">
+              <button class="btn btn-primary" id="saveStudentBtn" type="submit">সংরক্ষণ করুন</button>
+              <button class="btn btn-ghost hidden" id="reEnrollBtn" type="button">শুধু মুখ আবার নিবন্ধন</button>
+              <button class="btn btn-ghost hidden" id="rotateTokenBtn" type="button">QR রিনিউ (নতুন কার্ড)</button>
+            </div>
+            <p class="tiny muted mt-10">শিক্ষার্থী সংরক্ষণ করলেই আসল QR কার্ড তৈরি হয় — <a href="/cards" style="color:var(--brand);font-weight:700">কার্ড প্রিভিউ</a> পেজে।</p>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <!-- Attendance -->
+    <section class="panel hidden" id="panel-attendance">
+      <div class="card card-pad mt-22">
+        <div class="card-head">
+          <div><h2 class="card-title">উপস্থিতি রিপোর্ট</h2><p class="card-note" id="attSub">আজকের রেকর্ড</p></div>
+          <div class="flex gap-6 wrap">
+            <input class="field" type="date" id="attDate" style="width:170px">
+            <button class="btn btn-ghost btn-sm" id="attToday">আজ</button>
+            <button class="btn btn-ghost btn-sm" id="attCsv">CSV</button>
+            <button class="btn btn-ghost btn-sm" id="attPrint">প্রিন্ট</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>শিক্ষার্থী</th><th>Student ID</th><th>শ্রেণি</th><th>সময়</th><th>পদ্ধতি</th><th>অবস্থা</th><th class="no-print">অ্যাকশন</th></tr></thead>
+          <tbody id="attRows"></tbody>
+        </table></div>
+        <div class="flex gap-6 wrap mt-16 no-print" style="align-items:flex-end">
+          <label class="field-group" style="max-width:230px"><span class="field-label">ম্যানুয়াল উপস্থিতি</span><select class="select" id="manualStudent"></select></label>
+          <button class="btn btn-dark btn-sm" id="manualMark">উপস্থিত করুন</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="panel hidden" id="panel-settings">
+      <div class="grid grid-side mt-22">
+        <section class="card card-pad">
+          <div class="card-head"><div><h2 class="card-title">স্কুলের তথ্য</h2><p class="card-note">এই তথ্যই আইডি কার্ডে ছাপা হয়।</p></div></div>
+          <form id="settingsForm" class="form-grid">
+            <label class="field-group span-2"><span class="field-label">স্কুলের নাম (বাংলা)</span><input class="field" id="sName"></label>
+            <label class="field-group"><span class="field-label">নাম (English)</span><input class="field" id="sNameEn"></label>
+            <label class="field-group"><span class="field-label">EIIN</span><input class="field" id="sEiin"></label>
+            <label class="field-group span-2"><span class="field-label">ঠিকানা</span><input class="field" id="sAddress"></label>
+            <label class="field-group"><span class="field-label">ফোন</span><input class="field" id="sPhone"></label>
+            <label class="field-group"><span class="field-label">ইমেইল</span><input class="field" id="sEmail" type="email"></label>
+            <label class="field-group"><span class="field-label">প্রধান শিক্ষকের নাম</span><input class="field" id="sPrincipal"></label>
+            <label class="field-group"><span class="field-label">শিক্ষাবর্ষ</span><input class="field" id="sSession"></label>
+            <label class="field-group"><span class="field-label">কার্ডের মেয়াদ</span><input class="field" id="sValid" type="date"></label>
+            <label class="field-group"><span class="field-label">কার্ডের মূল রং</span><input class="field" id="sTheme" type="color" style="padding:4px;height:44px"></label>
+            <label class="field-group span-2"><span class="field-label">অ্যাপের URL <span class="opt">(QR যে লিংকে যাবে)</span></span><input class="field" id="sAppUrl" placeholder="https://your-school.onrender.com"></label>
+            <div class="span-2 flex gap-10 wrap center">
+              <button class="btn btn-primary" id="saveSettingsBtn" type="submit">সেটিংস সংরক্ষণ</button>
+              <label class="btn btn-ghost" style="position:relative;overflow:hidden">লোগো আপলোড<input type="file" id="logoFile" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+              <img id="logoPreview" class="avatar hidden" style="width:40px;height:40px;border-radius:12px" alt="">
+            </div>
+          </form>
+        </section>
+        <section class="card card-pad">
+          <h2 class="card-title">নিরাপত্তা ও অ্যাপ</h2>
+          <hr class="divider">
+          <form id="pinForm" class="grid" style="gap:12px">
+            <label class="field-group"><span class="field-label">নতুন PIN (৪–১২ ডিজিট)</span><input class="field" id="newPin" inputmode="numeric" autocomplete="new-password" placeholder="••••••"></label>
+            <label class="field-group"><span class="field-label">আবার লিখুন</span><input class="field" id="newPin2" inputmode="numeric" autocomplete="new-password" placeholder="••••••"></label>
+            <button class="btn btn-dark" type="submit">PIN পরিবর্তন</button>
+          </form>
+          <hr class="divider">
+          <h3 class="card-title" style="font-size:15px">অ্যাপ তথ্য</h3>
+          <dl class="small" style="margin:8px 0 0;display:grid;gap:7px">
+            <div class="flex between gap-10"><dt class="muted">ব্যাকএন্ড</dt><dd class="mono" style="margin:0" id="infoBackend">Supabase</dd></div>
+            <div class="flex between gap-10"><dt class="muted">ডেটাবেস সার্ভার</dt><dd class="mono tiny" style="margin:0" id="infoHost">—</dd></div>
+            <div class="flex between gap-10"><dt class="muted">Face model</dt><dd style="margin:0">লোকাল (face-api)</dd></div>
+            <div class="flex between gap-10"><dt class="muted">QR</dt><dd style="margin:0">লোকাল জেনারেটর</dd></div>
+          </dl>
+          <hr class="divider">
+          <button class="btn btn-danger btn-block" id="resetDemo">⚠ ডেমো ডেটা মুছুন…</button>
+          <p class="tiny muted mt-6">শিক্ষার্থী ও উপস্থিতি মুছে যাবে; সেটিংস থাকবে।</p>
+        </section>
+      </div>
     </section>
   </main>
-<script>
-  const API_BASE_URL = ""; // Render-এ একই origin. আলাদা Netlify site হলে এখানে Render URL দিন.
-  const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
-  const $ = id => document.getElementById(id);
-  let attendanceCache=[],cameraStream=null,capturedCanvas=null,modelsPromise=null;
-  const modelOptions=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
-  async function loadFaceModels(){
-    if(typeof faceapi==='undefined')throw new Error('Face library লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।');
-    // A failed download is cleared so the next attempt retries instead of reusing the error.
-    if(!modelsPromise)modelsPromise=Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]).catch(err=>{modelsPromise=null;throw err});
-    await modelsPromise;
-  }
-  function cameraErrorMessage(e){
-    const t=`${e?.name||''} ${e?.message??e??''}`;
-    if(/InsecureContext/.test(t))return e.message;
-    if(/NoMediaDevices/.test(t))return e.message;
-    if(/NotAllowed|Permission|denied/i.test(t))return 'ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের সাইট সেটিংস থেকে Camera → Allow করে পেজ রিলোড করুন।';
-    if(/NotFound|DevicesNotFound/i.test(t))return 'এই ডিভাইসে ক্যামেরা পাওয়া যায়নি।';
-    if(/NotReadable|TrackStart|in use/i.test(t))return 'ক্যামেরা অন্য অ্যাপ বা ট্যাবে ব্যবহার হচ্ছে। সেটি বন্ধ করে আবার চেষ্টা করুন।';
-    if(/Overconstrained/i.test(t))return 'ক্যামেরা এই সেটিং সমর্থন করে না।';
-    return 'ক্যামেরা চালু হয়নি। '+(e?.message??e??'');
-  }
-  function showMessage(node,text,error=false){node.textContent=text;node.className=`mt-4 text-sm ${error?'text-red-600':'text-emerald-700'}`}
-  async function descriptorFrom(source){
-    await loadFaceModels();
-    const found=await faceapi.detectAllFaces(source,modelOptions()).withFaceLandmarks().withFaceDescriptors();
-    if(found.length!==1)throw new Error(found.length===0?'ছবিতে মুখ শনাক্ত হয়নি। আলো ঠিক করে আবার তুলুন।':'ছবিতে একাধিক মুখ আছে; শুধু একজনের ছবি দিন।');
-    return Array.from(found[0].descriptor);
-  }
-  $('cameraBtn').addEventListener('click',async()=>{
-    // Camera first: the permission prompt and preview do not wait for the face-model download.
-    try{
-      if(!window.isSecureContext)throw Object.assign(new Error('ক্যামেরার জন্য HTTPS লিংক দরকার।'),{name:'InsecureContext'});
-      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Object.assign(new Error('এই ব্রাউজারে ক্যামেরা সাপোর্ট নেই। Chrome বা Safari ব্যবহার করুন।'),{name:'NoMediaDevices'});
-      if(cameraStream)cameraStream.getTracks().forEach(t=>t.stop());
-      cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'user'}},audio:false});
-      $('webcam').srcObject=cameraStream;$('webcam').classList.remove('hidden');$('captureBtn').classList.remove('hidden');$('webcam').play().catch(()=>{});
-      showMessage($('registerMessage'),'ক্যামেরা চালু। মুখটি ফ্রেমে রাখুন।');
-      loadFaceModels().catch(err=>showMessage($('registerMessage'),'Face model লোড হয়নি: '+(err.message||'ইন্টারনেট দেখুন।'),true));
-    }
-    catch(e){showMessage($('registerMessage'),cameraErrorMessage(e),true)}
-  });
-  $('captureBtn').addEventListener('click',()=>{const v=$('webcam'),c=$('captureCanvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return; c.getContext('2d').drawImage(v,0,0);capturedCanvas=c;$('photoInput').value='';showMessage($('registerMessage'),'ছবি নেওয়া হয়েছে; রেজিস্টারে মুখের descriptor তৈরি হবে।')});
-  $('photoInput').addEventListener('change',()=>capturedCanvas=null);
-  $('registerForm').addEventListener('submit',async e=>{
-    e.preventDefault();const form=e.currentTarget,file=$('photoInput').files[0];if(!capturedCanvas&&!file){showMessage($('registerMessage'),'ছবি আপলোড করুন অথবা ওয়েবক্যাম থেকে ছবি তুলুন।',true);return}
-    $('submitBtn').disabled=true;$('submitBtn').textContent='মুখ প্রসেস হচ্ছে…';
-    try{
-      let source=capturedCanvas,objectUrl=null;
-      if(!source){objectUrl=URL.createObjectURL(file);source=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('ছবিটি খোলা যায়নি।'));img.src=objectUrl})}
-      const descriptor=await descriptorFrom(source);if(objectUrl)URL.revokeObjectURL(objectUrl);
-      const response=await fetch(`${API_BASE_URL}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:form.student_id.value.trim(),name:form.name.value.trim(),class_name:form.class_name.value.trim(),face_descriptor:descriptor})});
-      const result=await response.json();if(!response.ok)throw new Error(result.detail||'রেজিস্ট্রেশন ব্যর্থ।');
-      showMessage($('registerMessage'),`রেজিস্টার সফল: ${result.student_name} (face data এই ব্রাউজারেই তৈরি হয়েছে)`);
-      $('qrcode').innerHTML='';new QRCode($('qrcode'),{text:result.student_id,width:200,height:200,colorDark:'#14213d',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});$('qrName').textContent=result.student_name;$('qrId').textContent=`Student ID: ${result.student_id}`;$('qrCard').classList.remove('hidden');form.reset();capturedCanvas=null;loadAttendance();
-      if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;$('webcam').classList.add('hidden');$('captureBtn').classList.add('hidden')}
-    }catch(err){showMessage($('registerMessage'),err.message||'Backend-এ সংযোগ করা যায়নি।',true)}
-    finally{$('submitBtn').disabled=false;$('submitBtn').textContent='শিক্ষার্থী রেজিস্টার করুন'}
-  });
-  $('downloadQr').addEventListener('click',()=>{const canvas=$('qrcode').querySelector('canvas'),img=$('qrcode').querySelector('img'),url=canvas?canvas.toDataURL('image/png'):img?.src;if(!url)return;const a=document.createElement('a');a.href=url;a.download=`student-${$('qrId').textContent.split(': ').pop()}.png`;a.click()});
-  function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-  async function loadAttendance(){
-    $('reportMessage').textContent='রিপোর্ট লোড হচ্ছে…';
-    try{const response=await fetch(`${API_BASE_URL}/api/attendance`),data=await response.json();if(!response.ok)throw new Error(data.detail||'রিপোর্ট পাওয়া যায়নি');attendanceCache=data;$('reportDate').textContent=`তারিখ: ${new Intl.DateTimeFormat('bn-BD',{dateStyle:'full'}).format(new Date())}`;$('countBadge').textContent=`${data.length} জন`;
-      $('attendanceRows').innerHTML=data.length?data.map(r=>`<tr><td class="font-mono font-semibold">${escapeHtml(r.student_id)}</td><td class="font-semibold">${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td><span class="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">${escapeHtml(r.status)}</span></td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-slate-500 py-8">আজ এখনো কোনো উপস্থিতি নেই।</td></tr>';$('reportMessage').textContent='';
-    }catch(err){$('reportMessage').textContent=err.message+' (Render/API status পরীক্ষা করুন)';$('reportMessage').className='text-sm text-red-600 mb-3'}
-  }
-  $('csvBtn').addEventListener('click',()=>{const rows=[['Student ID','Name','Date','Time','Status'],...attendanceCache.map(r=>[r.student_id,r.name,r.date,r.time,r.status])],csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`attendance-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href)});
-  $('refreshBtn').addEventListener('click',loadAttendance);loadAttendance();
-</script>
-</body></html>
+
+  <script src="/static/vendor/face-api.js"></script>
+  <script src="/static/vendor/qrcode.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/card.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

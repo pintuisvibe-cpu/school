@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1730">
+  <title>স্কুল আইডি কার্ড ও উপস্থিতি · School ID & Attendance</title>
+  <meta name="description" content="আসল QR আইডি কার্ড, ওয়েবক্যাম ফেস এনরোলমেন্ট ও গেট স্ক্যানার — Supabase ব্যাকএন্ডে চলে।">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brandmark" id="brandMark">S</div>
+      <div>
+        <div class="brand-title" id="brandName">স্কুল আইডি কার্ড</div>
+        <div class="brand-sub">School ID · Attendance</div>
+      </div>
+      <nav class="topnav">
+        <a href="/" class="active">হোম</a>
+        <a href="/admin">অ্যাডমিন</a>
+        <a href="/cards">কার্ড প্রিন্ট</a>
+        <a href="/scanner">গেট স্ক্যানার</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <span class="hero-kicker">● Supabase লাইভ ব্যাকএন্ড</span>
+      <h1>আসল QR আইডি কার্ড, এক সেকেন্ডে গেট উপস্থিতি</h1>
+      <p>শিক্ষার্থীর ছবি তুলুন, মুখের ১২৮-সংখ্যার ছাপ ব্রাউজারেই তৈরি হয়, কার্ড তৈরি হয় আসল স্ক্যানযোগ্য QR দিয়ে। গেটে QR স্ক্যান + মুখ মিলিয়ে উপস্থিতি রেকর্ড হয় — সবই আপনার Supabase ডেটাবেসে জমা থাকে।</p>
+      <div class="hero-actions">
+        <a class="btn btn-gold" href="/admin">অ্যাডমিন প্যানেল →</a>
+        <a class="btn btn-ghost" href="/scanner" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.24);color:#fff">গেট স্ক্যানার খুলুন</a>
+        <a class="btn btn-ghost" href="/cards" style="background:transparent;border-color:rgba(255,255,255,.24);color:#fff">কার্ড প্রিভিউ ও প্রিন্ট</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><b id="statStudents">—</b><span>নিবন্ধিত শিক্ষার্থী</span></div>
+        <div class="hero-stat"><b id="statPresent">—</b><span>আজ উপস্থিত</span></div>
+        <div class="hero-stat"><b id="statSchool">—</b><span id="statSchoolLabel">প্রতিষ্ঠান</span></div>
+      </div>
+    </section>
+
+    <div class="grid grid-3 mt-22">
+      <section class="card card-pad">
+        <div class="pill">০১ · এনরোল</div>
+        <h2 class="card-title mt-10">শিক্ষার্থী ও মুখ নিবন্ধন</h2>
+        <p class="card-note">অ্যাডমিন PIN দিয়ে ঢুকে নাম, শ্রেণি, ছবি ও মুখের descriptor সংরক্ষণ করুন।</p>
+        <a class="btn btn-ghost btn-sm mt-16" href="/admin#students">শিক্ষার্থী যোগ করুন</a>
+      </section>
+      <section class="card card-pad">
+        <div class="pill">০২ · কার্ড</div>
+        <h2 class="card-title mt-10">আইডি কার্ড ও আসল QR</h2>
+        <p class="card-note">প্রতিটি কার্ডে ইউনিক টোকেন QR — স্ক্যান করলেই যাচাই পেজ, ছাপার জন্য প্রস্তুত।</p>
+        <a class="btn btn-ghost btn-sm mt-16" href="/cards">কার্ড দেখুন</a>
+      </section>
+      <section class="card card-pad">
+        <div class="pill">০৩ · উপস্থিতি</div>
+        <h2 class="card-title mt-10">গেট স্ক্যানার</h2>
+        <p class="card-note">QR স্ক্যান + ক্যামেরার সামনে মুখ — মিললেই উপস্থিতি, না মিললে Face Mismatch।</p>
+        <a class="btn btn-ghost btn-sm mt-16" href="/scanner">স্ক্যানার চালু করুন</a>
+      </section>
+    </div>
+
+    <section class="card card-pad mt-22">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">সাম্প্রতিক উপস্থিতি</h2>
+          <p class="card-note" id="todayLabel">আজকের রেকর্ড</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="/admin#attendance">পূর্ণ রিপোর্ট</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>শিক্ষার্থী</th><th>ID</th><th>শ্রেণি</th><th>সময়</th><th>পদ্ধতি</th></tr></thead>
+          <tbody id="recentRows"><tr><td colspan="5" class="empty">লোড হচ্ছে…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="tiny muted mt-10">পূর্ণ তালিকা ও CSV রিপোর্ট অ্যাডমিন প্যানেলে (PIN দিয়ে) দেখা যায়।</p>
+    </section>
+
+    <section class="card card-pad mt-22">
+      <div class="card-head"><div><h2 class="card-title">কীভাবে কাজ করে</h2><p class="card-note">ডেটা প্রবাহ — সবই আপনার নিজের Supabase প্রজেক্টে</p></div></div>
+      <div class="grid grid-3">
+        <div>
+          <div class="pill pill-muted">ব্রাউজার</div>
+          <p class="small mt-6">face-api মডেল ছবি থেকে ১২৮-সংখ্যার descriptor তৈরি করে। মূল ছবি কোনো সার্ভারে যায় না; শুধু ছোট পোর্ট্রেট (শিক্ষার্থীর সম্মতিতে) কার্ডের জন্য সংরক্ষিত হয়।</p>
+        </div>
+        <div>
+          <div class="pill pill-muted">Supabase</div>
+          <p class="small mt-6">Postgres টেবিল <span class="mono">students</span>, <span class="mono">attendance</span>, <span class="mono">school_settings</span> — RLS চালু, শুধু <span class="mono">security definer</span> RPC দিয়ে প্রবেশ।</p>
+        </div>
+        <div>
+          <div class="pill pill-muted">গেট</div>
+          <p class="small mt-6">QR টোকেন + লাইভ মুখের descriptor সার্ভারে মিলিয়ে দেখা হয় (দূরত্ব ≤ ০.৫)। মিললে আজকের তারিখে উপস্থিতি, একবারই।</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    (async function () {
+      const S = School;
+      try {
+        const [settings, stats] = await Promise.all([
+          S.rpc("public_settings"),
+          S.rpc("public_stats").catch(() => null),
+        ]);
+        if (settings) {
+          S.$("brandName").textContent = settings.school_name || "স্কুল আইডি কার্ড";
+          document.title = `${settings.school_name} · আইডি কার্ড ও উপস্থিতি`;
+          S.$("statSchool").textContent = settings.session ? S.bn(settings.session) : "স্কুল";
+          S.$("statSchoolLabel").textContent = "শিক্ষাবর্ষ";
+          S.$("brandMark").textContent = (settings.school_name_en || settings.school_name || "S").slice(0, 1);
+        }
+        if (stats) {
+          S.$("statStudents").textContent = S.bn(stats.students ?? "—");
+          S.$("statPresent").textContent = S.bn(stats.present_today ?? "—");
+        } else {
+          S.$("statStudents").textContent = "—";
+          S.$("statPresent").textContent = "—";
+        }
+        S.$("todayLabel").textContent = "আজ " + S.fmtDate(new Date().toISOString());
+        const rows = stats && Array.isArray(stats.recent) ? stats.recent : [];
+        S.$("recentRows").innerHTML = rows.length
+          ? rows.map((r) => `<tr>
+              <td><div class="row-person"><div class="avatar avatar-sm">${S.esc((r.name || "?").slice(0, 1))}</div><b>${S.esc(r.name)}</b></div></td>
+              <td class="td-mono">${S.esc(r.student_id)}</td>
+              <td>${S.esc(r.class_name || "—")}</td>
+              <td class="td-mono">${S.esc(r.time)}</td>
+              <td><span class="pill ${r.method === "manual" ? "pill-warn" : "pill-ok"}">${r.method === "manual" ? "ম্যানুয়াল" : "QR + ফেস"}</span></td>
+            </tr>`).join("")
+          : `<tr><td colspan="5" class="empty"><b>আজ এখনো উপস্থিতি নেই</b>গেট স্ক্যানার চালু করে প্রথম শিক্ষার্থী স্ক্যান করুন।</td></tr>`;
+      } catch (err) {
+        S.$("recentRows").innerHTML = `<tr><td colspan="5" class="empty"><b>ডেটা লোড হয়নি</b>${S.esc(err.message)}</td></tr>`;
+        S.$("statStudents").textContent = "—";
+        S.$("statPresent").textContent = "—";
+      }
+    })();
+  </script>
+</body>
+</html>

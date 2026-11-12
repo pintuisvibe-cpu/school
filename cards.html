@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1730">
+  <title>কার্ড প্রিভিউ ও প্রিন্ট · School ID</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 22px; }
+    @media (max-width: 760px) { .cards-grid { grid-template-columns: 1fr; } }
+    .card-item { display: grid; gap: 10px; justify-items: center; }
+    .card-item .id-card { transform-origin: top center; }
+    .card-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      .cards-grid { grid-template-columns: 1fr 1fr; gap: 8mm; }
+      .card-item { break-inside: avoid; }
+      .card-actions { display: none !important; }
+      .id-card { width: 82mm; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar no-print">
+    <div class="topbar-inner">
+      <div class="brandmark" id="brandMark">S</div>
+      <div><div class="brand-title" id="brandName">স্কুল আইডি কার্ড</div><div class="brand-sub">Cards</div></div>
+      <nav class="topnav">
+        <a href="/">হোম</a>
+        <a href="/admin">অ্যাডমিন</a>
+        <a href="/cards" class="active">কার্ড প্রিন্ট</a>
+        <a href="/scanner">গেট স্ক্যানার</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="page-head no-print">
+      <div>
+        <div class="eyebrow">কার্ড স্টুডিও</div>
+        <h1 class="page-title">আইডি কার্ড প্রিভিউ ও প্রিন্ট</h1>
+        <p class="page-lede">প্রতিটি কার্ডে আসল QR — স্ক্যান করলেই যাচাই পেজ খুলবে। অ্যাডমিনে PIN দিয়ে লগইন থাকলে ছবি সহ সব শিক্ষার্থীর কার্ড দেখাবে।</p>
+      </div>
+      <div class="flex gap-6 wrap no-print">
+        <button class="btn btn-dark" id="printAll">সব কার্ড প্রিন্ট</button>
+        <a class="btn btn-ghost" href="/admin">ডেটা ম্যানেজ</a>
+      </div>
+    </div>
+
+    <section class="card card-pad no-print">
+      <div class="flex gap-10 wrap center between">
+        <div class="tabs" id="viewTabs">
+          <button class="tab" data-view="all" aria-selected="true">সব শিক্ষার্থী</button>
+          <button class="tab" data-view="one" aria-selected="false">একটি কার্ড</button>
+          <button class="tab" data-view="token" aria-selected="false">টোকেন দিয়ে</button>
+        </div>
+        <div class="flex gap-6 wrap" id="oneControls">
+          <input class="field" id="cardQuery" placeholder="Student ID লিখুন" style="width:200px">
+          <button class="btn btn-primary btn-sm" id="loadCard">দেখুন</button>
+        </div>
+      </div>
+      <p class="tiny muted mt-10" id="cardsHint">লোড হচ্ছে…</p>
+    </section>
+
+    <div id="cardsArea" class="mt-22">
+      <div class="empty card">কার্ড লোড হচ্ছে…</div>
+    </div>
+
+    <section class="card card-pad mt-22 no-print">
+      <h2 class="card-title">QR যাচাই</h2>
+      <p class="card-note">শিক্ষার্থীর QR স্ক্যান করলে <span class="mono">/card?t=টোকেন</span> লিংকে যাবে — সেখানে ছবি ও কার্ডের বৈধতা দেখা যায়।</p>
+      <div class="flex gap-10 mt-10 wrap">
+        <input class="field" id="verifyToken" placeholder="কার্ড টোকেন" style="max-width:260px">
+        <a class="btn btn-ghost" id="openVerify">যাচাই পেজ খুলুন</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/vendor/qrcode.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/card.js"></script>
+  <script>
+    (function () {
+      const S = School;
+      const $ = S.$;
+      let settings = {};
+      let students = [];
+      let view = "all";
+      let pin = S.sess.pin;
+
+      function cardHtml(s) {
+        return `<div class="card-item" data-id="${S.esc(s.student_id)}">
+          ${SchoolCard.render(s, settings, { verifyBase: settings.app_url || location.origin })}
+          <div class="card-actions no-print">
+            <button class="btn btn-ghost btn-sm" data-download="${S.esc(s.student_id)}">PNG</button>
+            <button class="btn btn-ghost btn-sm" data-print="${S.esc(s.student_id)}">প্রিন্ট</button>
+            <a class="btn btn-ghost btn-sm" href="/card?t=${encodeURIComponent(s.card_token || "")}">QR যাচাই</a>
+          </div>
+        </div>`;
+      }
+
+      function render() {
+        const area = $("cardsArea");
+        if (!students.length) {
+          area.innerHTML = `<div class="card empty"><b>কোনো কার্ড নেই</b>অ্যাডমিন প্যানেলে PIN দিয়ে লগইন করুন — শিক্ষার্থী যোগ করলে কার্ড এখানে দেখা যাবে।</div>`;
+          return;
+        }
+        area.className = "cards-grid mt-22";
+        area.innerHTML = students.map(cardHtml).join("");
+      }
+
+      async function loadSettings() {
+        try {
+          settings = (await S.rpc("public_settings")) || {};
+          if (settings.school_name) {
+            $("brandName").textContent = settings.school_name;
+            $("brandMark").textContent = (settings.school_name_en || settings.school_name || "S").slice(0, 1);
+            document.title = `আইডি কার্ড · ${settings.school_name}`;
+          }
+        } catch (e) {
+          S.toast(e.message, "error");
+        }
+      }
+
+      async function loadAll() {
+        if (!pin) {
+          students = [];
+          $("cardsHint").textContent = "শিক্ষার্থীর ছবি সহ কার্ড দেখতে অ্যাডমিন PIN দিয়ে লগইন করুন।";
+          render();
+          return;
+        }
+        try {
+          const res = await S.rpc("admin_list_students", { p_pin: pin });
+          if (res.status !== "success") throw new Error(res.reason || "তালিকা আসেনি");
+          students = res.students || [];
+          $("cardsHint").textContent = `${S.bn(students.length)} জন শিক্ষার্থীর কার্ড • প্রিন্টে প্রতিটি কার্ড A4-এ ফিট হবে।`;
+          render();
+        } catch (err) {
+          pin = "";
+          $("cardsHint").innerHTML = `<span style="color:var(--danger)">${S.esc(err.message)}</span>`;
+          students = [];
+          render();
+        }
+      }
+
+      function setView(v) {
+        view = v;
+        document.querySelectorAll("#viewTabs .tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === v)));
+        $("oneControls").classList.toggle("hidden", v === "all");
+        $("cardQuery").placeholder = v === "token" ? "কার্ড টোকেন দিন" : "Student ID লিখুন";
+        if (v === "all") {
+          $("cardsArea").className = "cards-grid mt-22";
+          loadAll();
+        }
+      }
+      $("viewTabs").addEventListener("click", (e) => {
+        const b = e.target.closest(".tab");
+        if (b) setView(b.dataset.view);
+      });
+
+      async function loadOne() {
+        const q = $("cardQuery").value.trim();
+        if (!q) return S.toast("Student ID বা টোকেন লিখুন", "warn");
+        try {
+          if (view === "token" || /^[a-f0-9]{18}$/i.test(q)) {
+            const res = await S.rpc("public_student_by_token", { p_token: q });
+            if (res.status !== "success") throw new Error(res.reason || "কার্ড পাওয়া যায়নি");
+            students = [res];
+          } else {
+            if (!pin) return S.toast("Student ID দিয়ে খুঁজতে অ্যাডমিন PIN দিয়ে লগইন করুন, অথবা কার্ড টোকেন ব্যবহার করুন।", "warn", 6000);
+            const res = await S.rpc("admin_list_students", { p_pin: pin });
+            if (res.status !== "success") throw new Error(res.reason);
+            const found = (res.students || []).find((s) => s.student_id.toLowerCase() === q.toLowerCase());
+            if (!found) throw new Error("এই Student ID পাওয়া যায়নি।");
+            students = [found];
+          }
+          render();
+          $("cardsHint").textContent = "একটি কার্ড দেখানো হচ্ছে।";
+        } catch (err) {
+          S.toast(err.message, "error");
+        }
+      }
+      $("loadCard").addEventListener("click", loadOne);
+      $("cardQuery").addEventListener("keydown", (e) => e.key === "Enter" && loadOne());
+
+      $("cardsArea").addEventListener("click", async (e) => {
+        const dl = e.target.dataset?.download;
+        const pr = e.target.dataset?.print;
+        if (dl) return savePng(dl);
+        if (pr) return printOne(pr);
+      });
+
+      function printOne(id) {
+        const item = document.querySelector(`.card-item[data-id="${CSS.escape(id)}"]`);
+        if (!item) return;
+        const clone = item.querySelector(".id-card").cloneNode(true);
+        const w = window.open("", "_blank", "width=480,height=760");
+        if (!w) return S.toast("পপ-আপ ব্লক হয়েছে — ব্রাউজার অনুমতি দিন।", "warn");
+        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>কার্ড</title>
+          <link rel="stylesheet" href="${location.origin}/css/app.css">
+          <style>body{display:grid;place-items:center;min-height:100vh;background:#fff;margin:0}
+          @page{size:A4;margin:12mm}.id-card{box-shadow:none}</style></head>
+          <body>${clone.outerHTML}</body></html>`);
+        w.document.close();
+        w.onload = () => setTimeout(() => w.print(), 400);
+      }
+
+      async function savePng(id) {
+        const item = document.querySelector(`.card-item[data-id="${CSS.escape(id)}"]`);
+        const node = item?.querySelector(".id-card");
+        if (!node) return;
+        if (typeof html2canvas !== "function") {
+          return printOne(id);
+        }
+        S.toast("কার্ডের ছবি তৈরি হচ্ছে…", "info");
+        try {
+          const canvas = await html2canvas(node, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
+          const a = document.createElement("a");
+          a.href = canvas.toDataURL("image/png");
+          a.download = `id-card-${id}.png`;
+          a.click();
+        } catch (err) {
+          S.toast("PNG তৈরি হয়নি, প্রিন্ট ব্যবহার করুন।", "error");
+        }
+      }
+
+      $("printAll").addEventListener("click", () => window.print());
+      $("openVerify").addEventListener("click", () => {
+        const t = $("verifyToken").value.trim();
+        if (!t) return S.toast("টোকেন দিন", "warn");
+        location.href = `/card?t=${encodeURIComponent(t)}`;
+      });
+
+      (async function init() {
+        await loadSettings();
+        if (new URLSearchParams(location.search).get("id")) {
+          setView("one");
+          $("cardQuery").value = new URLSearchParams(location.search).get("id");
+          await loadOne();
+        } else {
+          await loadAll();
+        }
+      })();
+    })();
+  </script>
+  <script src="/static/vendor/html2canvas.min.js"></script>
+</body>
+</html>
