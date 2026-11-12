@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>স্কুল অ্যাটেনডেন্স · Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+  <style>
+    body{background:#f4f7fb;color:#14213d;font-family:ui-sans-serif,system-ui,"Noto Sans Bengali",sans-serif}.card{background:white;border:1px solid #e7edf5;border-radius:20px;box-shadow:0 8px 30px #19365b0b}.field{width:100%;border:1px solid #dbe3ef;border-radius:12px;padding:11px 13px;outline:none;background:white}.field:focus{border-color:#2563eb;box-shadow:0 0 0 3px #2563eb1a}button{cursor:pointer}.table-wrap{overflow:auto}th,td{padding:12px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid #edf1f6}
+  </style>
+</head>
+<body>
+  <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-3"><div><p class="text-xs uppercase tracking-[.22em] text-blue-600 font-bold">SCHOOL • ATTENDANCE</p><h1 class="text-xl md:text-2xl font-extrabold mt-1">অ্যাডমিন ড্যাশবোর্ড</h1></div><button id="refreshBtn" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">⟳ রিফ্রেশ</button></div></header>
+  <main class="max-w-7xl mx-auto p-5 md:p-8 grid lg:grid-cols-[.9fr_1.1fr] gap-6">
+    <section class="card p-5 md:p-7">
+      <div class="mb-5"><p class="text-sm font-bold text-blue-600">নতুন শিক্ষার্থী</p><h2 class="text-2xl font-extrabold mt-1">রেজিস্ট্রেশন ও QR</h2><p class="text-sm text-slate-500 mt-2">Face model ব্রাউজারে চলে। ছবি বা face descriptor কোনো paid recognition API-তে পাঠানো হয় না।</p></div>
+      <form id="registerForm" class="space-y-4">
+        <label class="block text-sm font-semibold">Student ID<input class="field mt-1.5" name="student_id" required maxlength="64" autocomplete="off" placeholder="যেমন: STU-1001"></label>
+        <label class="block text-sm font-semibold">পূর্ণ নাম<input class="field mt-1.5" name="name" required maxlength="160" placeholder="শিক্ষার্থীর নাম"></label>
+        <label class="block text-sm font-semibold">শ্রেণি<input class="field mt-1.5" name="class_name" required maxlength="80" placeholder="যেমন: Class 5 - A"></label>
+        <label class="block text-sm font-semibold">রেজিস্ট্রেশন ছবি <span class="font-normal text-slate-500">(JPEG/PNG)</span><input class="field mt-1.5" id="photoInput" type="file" accept="image/jpeg,image/png"></label>
+        <div class="flex gap-2"><button type="button" id="cameraBtn" class="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">ওয়েবক্যাম</button><button type="button" id="captureBtn" class="hidden rounded-xl bg-blue-50 text-blue-700 px-4 py-2.5 font-semibold">ছবি তুলুন</button></div>
+        <video id="webcam" class="hidden w-full max-h-64 rounded-xl bg-slate-900 object-cover" autoplay playsinline></video><canvas id="captureCanvas" class="hidden"></canvas>
+        <label class="flex gap-2 items-start text-xs text-slate-600"><input id="consent" type="checkbox" required class="mt-0.5"><span>আমি নিশ্চিত করছি যে অভিভাবকের অবহিত সম্মতি আছে। face descriptor বায়োমেট্রিক তথ্য হিসেবে বিবেচিত হবে।</span></label>
+        <button id="submitBtn" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-3 font-bold">শিক্ষার্থী রেজিস্টার করুন</button>
+      </form>
+      <div id="registerMessage" class="mt-4 text-sm" role="status"></div>
+      <div id="qrCard" class="hidden mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center"><p id="qrName" class="font-bold"></p><div id="qrcode" class="my-4 inline-flex bg-white p-3 rounded-xl"></div><p id="qrId" class="text-sm text-slate-500"></p><button id="downloadQr" class="mt-2 rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">QR ডাউনলোড</button></div>
+    </section>
+    <section class="card p-5 md:p-7">
+      <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm">CSV ডাউনলোড</button></div></div>
+      <div id="reportMessage" class="text-sm text-slate-500 mb-3"></div><div class="table-wrap rounded-xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম</th><th>তারিখ</th><th>সময়</th><th>অবস্থা</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-slate-500 py-8">লোড হচ্ছে…</td></tr></tbody></table></div>
+      <p class="text-xs text-slate-400 mt-4">শিক্ষার্থীর তথ্য সীমিত প্রবেশাধিকারে রাখুন।</p>
+    </section>
+  </main>
+<script>
+  const API_BASE_URL = ""; // Render-এ একই origin. আলাদা Netlify site হলে এখানে Render URL দিন.
+  const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
+  const $ = id => document.getElementById(id);
+  let attendanceCache=[],cameraStream=null,capturedCanvas=null,modelsPromise=null;
+  const modelOptions=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
+  async function loadFaceModels(){
+    if(!modelsPromise)modelsPromise=Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);
+    await modelsPromise;
+  }
+  function showMessage(node,text,error=false){node.textContent=text;node.className=`mt-4 text-sm ${error?'text-red-600':'text-emerald-700'}`}
+  async function descriptorFrom(source){
+    await loadFaceModels();
+    const found=await faceapi.detectAllFaces(source,modelOptions()).withFaceLandmarks().withFaceDescriptors();
+    if(found.length!==1)throw new Error(found.length===0?'ছবিতে মুখ শনাক্ত হয়নি। আলো ঠিক করে আবার তুলুন।':'ছবিতে একাধিক মুখ আছে; শুধু একজনের ছবি দিন।');
+    return Array.from(found[0].descriptor);
+  }
+  $('cameraBtn').addEventListener('click',async()=>{
+    try{await loadFaceModels();cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});$('webcam').srcObject=cameraStream;$('webcam').classList.remove('hidden');$('captureBtn').classList.remove('hidden');showMessage($('registerMessage'),'ক্যামেরা চালু। মুখটি ফ্রেমে রাখুন।')}
+    catch(e){showMessage($('registerMessage'),'মডেল/ওয়েবক্যাম চালু হয়নি। HTTPS, ইন্টারনেট ও camera permission পরীক্ষা করুন। '+e.message,true)}
+  });
+  $('captureBtn').addEventListener('click',()=>{const v=$('webcam'),c=$('captureCanvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return; c.getContext('2d').drawImage(v,0,0);capturedCanvas=c;$('photoInput').value='';showMessage($('registerMessage'),'ছবি নেওয়া হয়েছে; রেজিস্টারে মুখের descriptor তৈরি হবে।')});
+  $('photoInput').addEventListener('change',()=>capturedCanvas=null);
+  $('registerForm').addEventListener('submit',async e=>{
+    e.preventDefault();const form=e.currentTarget,file=$('photoInput').files[0];if(!capturedCanvas&&!file){showMessage($('registerMessage'),'ছবি আপলোড করুন অথবা ওয়েবক্যাম থেকে ছবি তুলুন।',true);return}
+    $('submitBtn').disabled=true;$('submitBtn').textContent='মুখ প্রসেস হচ্ছে…';
+    try{
+      let source=capturedCanvas,objectUrl=null;
+      if(!source){objectUrl=URL.createObjectURL(file);source=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('ছবিটি খোলা যায়নি।'));img.src=objectUrl})}
+      const descriptor=await descriptorFrom(source);if(objectUrl)URL.revokeObjectURL(objectUrl);
+      const response=await fetch(`${API_BASE_URL}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:form.student_id.value.trim(),name:form.name.value.trim(),class_name:form.class_name.value.trim(),face_descriptor:descriptor})});
+      const result=await response.json();if(!response.ok)throw new Error(result.detail||'রেজিস্ট্রেশন ব্যর্থ।');
+      showMessage($('registerMessage'),`রেজিস্টার সফল: ${result.student_name} (face data এই ব্রাউজারেই তৈরি হয়েছে)`);
+      $('qrcode').innerHTML='';new QRCode($('qrcode'),{text:result.student_id,width:200,height:200,colorDark:'#14213d',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});$('qrName').textContent=result.student_name;$('qrId').textContent=`Student ID: ${result.student_id}`;$('qrCard').classList.remove('hidden');form.reset();capturedCanvas=null;loadAttendance();
+      if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;$('webcam').classList.add('hidden');$('captureBtn').classList.add('hidden')}
+    }catch(err){showMessage($('registerMessage'),err.message||'Backend-এ সংযোগ করা যায়নি।',true)}
+    finally{$('submitBtn').disabled=false;$('submitBtn').textContent='শিক্ষার্থী রেজিস্টার করুন'}
+  });
+  $('downloadQr').addEventListener('click',()=>{const canvas=$('qrcode').querySelector('canvas'),img=$('qrcode').querySelector('img'),url=canvas?canvas.toDataURL('image/png'):img?.src;if(!url)return;const a=document.createElement('a');a.href=url;a.download=`student-${$('qrId').textContent.split(': ').pop()}.png`;a.click()});
+  function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  async function loadAttendance(){
+    $('reportMessage').textContent='রিপোর্ট লোড হচ্ছে…';
+    try{const response=await fetch(`${API_BASE_URL}/api/attendance`),data=await response.json();if(!response.ok)throw new Error(data.detail||'রিপোর্ট পাওয়া যায়নি');attendanceCache=data;$('reportDate').textContent=`তারিখ: ${new Intl.DateTimeFormat('bn-BD',{dateStyle:'full'}).format(new Date())}`;$('countBadge').textContent=`${data.length} জন`;
+      $('attendanceRows').innerHTML=data.length?data.map(r=>`<tr><td class="font-mono font-semibold">${escapeHtml(r.student_id)}</td><td class="font-semibold">${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td><span class="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">${escapeHtml(r.status)}</span></td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-slate-500 py-8">আজ এখনো কোনো উপস্থিতি নেই।</td></tr>';$('reportMessage').textContent='';
+    }catch(err){$('reportMessage').textContent=err.message+' (Render/API status পরীক্ষা করুন)';$('reportMessage').className='text-sm text-red-600 mb-3'}
+  }
+  $('csvBtn').addEventListener('click',()=>{const rows=[['Student ID','Name','Date','Time','Status'],...attendanceCache.map(r=>[r.student_id,r.name,r.date,r.time,r.status])],csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`attendance-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href)});
+  $('refreshBtn').addEventListener('click',loadAttendance);loadAttendance();
+</script>
+</body></html>
