@@ -36,7 +36,7 @@
   <div id="startPanel"><div><h1>ক্যামেরা চালু হয়নি</h1><p id="startError"></p><button id="startBtn" type="button">আবার চেষ্টা করুন</button><p id="startNote">ক্যামেরার জন্য HTTPS লিংক ও camera permission দরকার। প্রথমবার face model ডাউনলোডে ইন্টারনেট দরকার।</p></div></div>
   <canvas id="captureCanvas" style="display:none"></canvas>
 <script>
-  const API_BASE_URL = ""; // Render-এর /scanner route same-origin. অন্য host-এ দিলে Render URL বসান.
+  const API_BASE_URL = ""; // Same-origin /scanner route. অন্য host-এ হোস্ট করলে সেই API URL বসান.
   const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
   const $ = id => document.getElementById(id);
   let scanner = null, starting = null, locked = false, resetTimer = null, audioContext = null, modelsPromise = null;
@@ -84,7 +84,7 @@
     if(locked)return;locked=true;$('statusText').textContent='QR পড়া হয়েছে • মুখ যাচাই হচ্ছে…';try{scanner.pause(false)}catch(e){}
     try{
       const descriptor=await descriptorFromLiveVideo();const response=await fetch(`${API_BASE_URL}/api/verify-attendance`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:qrText.trim(),face_descriptor:descriptor})});let result={};try{result=await response.json()}catch(e){}
-      if(response.ok&&result.status==='success')showResult(true,`Present: ${result.student_name}`,`ID: ${qrText.trim()}`);else{const reason=result.reason||result.detail||'Face Mismatch!';showResult(false,reason==='Face Mismatch!'?'Face Mismatch!':'যাচাই ব্যর্থ',reason)}
+      if(response.ok&&result.status==='success')showResult(true,`Present: ${result.student_name}`,`সময়: ${result.time||''}`);else{const reason=result.reason||result.detail||'Face Mismatch!';showResult(false,reason==='Face Mismatch!'?'Face Mismatch!':'যাচাই ব্যর্থ',reason)}
     }catch(e){showResult(false,'যাচাই করা যায়নি',e.message||'নেটওয়ার্ক/ক্যামেরা সমস্যা।')}
   }
   // Camera is requested first, so the permission prompt and preview do not wait for the face models.
