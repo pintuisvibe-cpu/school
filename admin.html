@@ -41,8 +41,20 @@
   let attendanceCache=[],cameraStream=null,capturedCanvas=null,modelsPromise=null;
   const modelOptions=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
   async function loadFaceModels(){
-    if(!modelsPromise)modelsPromise=Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);
+    if(typeof faceapi==='undefined')throw new Error('Face library লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।');
+    // A failed download is cleared so the next attempt retries instead of reusing the error.
+    if(!modelsPromise)modelsPromise=Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]).catch(err=>{modelsPromise=null;throw err});
     await modelsPromise;
+  }
+  function cameraErrorMessage(e){
+    const t=`${e?.name||''} ${e?.message??e??''}`;
+    if(/InsecureContext/.test(t))return e.message;
+    if(/NoMediaDevices/.test(t))return e.message;
+    if(/NotAllowed|Permission|denied/i.test(t))return 'ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের সাইট সেটিংস থেকে Camera → Allow করে পেজ রিলোড করুন।';
+    if(/NotFound|DevicesNotFound/i.test(t))return 'এই ডিভাইসে ক্যামেরা পাওয়া যায়নি।';
+    if(/NotReadable|TrackStart|in use/i.test(t))return 'ক্যামেরা অন্য অ্যাপ বা ট্যাবে ব্যবহার হচ্ছে। সেটি বন্ধ করে আবার চেষ্টা করুন।';
+    if(/Overconstrained/i.test(t))return 'ক্যামেরা এই সেটিং সমর্থন করে না।';
+    return 'ক্যামেরা চালু হয়নি। '+(e?.message??e??'');
   }
   function showMessage(node,text,error=false){node.textContent=text;node.className=`mt-4 text-sm ${error?'text-red-600':'text-emerald-700'}`}
   async function descriptorFrom(source){
@@ -52,8 +64,17 @@
     return Array.from(found[0].descriptor);
   }
   $('cameraBtn').addEventListener('click',async()=>{
-    try{await loadFaceModels();cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});$('webcam').srcObject=cameraStream;$('webcam').classList.remove('hidden');$('captureBtn').classList.remove('hidden');showMessage($('registerMessage'),'ক্যামেরা চালু। মুখটি ফ্রেমে রাখুন।')}
-    catch(e){showMessage($('registerMessage'),'মডেল/ওয়েবক্যাম চালু হয়নি। HTTPS, ইন্টারনেট ও camera permission পরীক্ষা করুন। '+e.message,true)}
+    // Camera first: the permission prompt and preview do not wait for the face-model download.
+    try{
+      if(!window.isSecureContext)throw Object.assign(new Error('ক্যামেরার জন্য HTTPS লিংক দরকার।'),{name:'InsecureContext'});
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Object.assign(new Error('এই ব্রাউজারে ক্যামেরা সাপোর্ট নেই। Chrome বা Safari ব্যবহার করুন।'),{name:'NoMediaDevices'});
+      if(cameraStream)cameraStream.getTracks().forEach(t=>t.stop());
+      cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'user'}},audio:false});
+      $('webcam').srcObject=cameraStream;$('webcam').classList.remove('hidden');$('captureBtn').classList.remove('hidden');$('webcam').play().catch(()=>{});
+      showMessage($('registerMessage'),'ক্যামেরা চালু। মুখটি ফ্রেমে রাখুন।');
+      loadFaceModels().catch(err=>showMessage($('registerMessage'),'Face model লোড হয়নি: '+(err.message||'ইন্টারনেট দেখুন।'),true));
+    }
+    catch(e){showMessage($('registerMessage'),cameraErrorMessage(e),true)}
   });
   $('captureBtn').addEventListener('click',()=>{const v=$('webcam'),c=$('captureCanvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return; c.getContext('2d').drawImage(v,0,0);capturedCanvas=c;$('photoInput').value='';showMessage($('registerMessage'),'ছবি নেওয়া হয়েছে; রেজিস্টারে মুখের descriptor তৈরি হবে।')});
   $('photoInput').addEventListener('change',()=>capturedCanvas=null);
