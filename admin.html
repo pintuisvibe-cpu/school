@@ -8,29 +8,52 @@
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
   <style>
     body{background:#f4f7fb;color:#14213d;font-family:ui-sans-serif,system-ui,"Noto Sans Bengali",sans-serif}.card{background:white;border:1px solid #e7edf5;border-radius:20px;box-shadow:0 8px 30px #19365b0b}.field{width:100%;border:1px solid #dbe3ef;border-radius:12px;padding:11px 13px;outline:none;background:white}.field:focus{border-color:#2563eb;box-shadow:0 0 0 3px #2563eb1a}button{cursor:pointer}.table-wrap{overflow:auto}th,td{padding:12px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid #edf1f6}
+    #qrcode canvas,#qrcode img{margin:0 auto;display:block;max-width:100%;height:auto}
+    @media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{position:fixed;left:50%;top:24px;transform:translateX(-50%)}}
   </style>
 </head>
 <body>
   <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs uppercase tracking-[.22em] text-blue-600 font-bold">SCHOOL • ATTENDANCE</p><h1 class="text-xl md:text-2xl font-extrabold mt-1">অ্যাডমিন ড্যাশবোর্ড</h1></div><div class="flex flex-wrap items-center gap-2">
+    <a href="/scanner" class="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold hover:bg-slate-50">📷 স্ক্যানার খুলুন</a>
     <details id="authSettings" class="relative"><summary class="list-none cursor-pointer rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">API টোকেন</summary>
       <form id="authForm" class="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-xl space-y-2">
+      <form id="authForm" class="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-xl space-y-2.5">
         <label for="authInput" class="block text-sm font-semibold">API_ACCESS_TOKEN (Supabase key নয়)</label>
         <input id="authInput" class="field" type="password" autocomplete="off" placeholder="API টোকেন লিখুন">
+        <p class="text-[11px] text-slate-500">একবার সেট করলে এই ডিভাইসে সেভ থাকবে (রিলোড/ট্যাব বন্ধ করলেও মুছবে না)।</p>
         <p id="authStatus" class="text-xs text-slate-600" role="status"></p>
         <div class="flex gap-2"><button type="submit" class="rounded-lg bg-blue-600 text-white px-3 py-2 text-sm font-semibold">সেট করুন</button><button id="clearAuth" type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">মুছুন</button></div>
+        <div id="pairBox" class="hidden border-t border-slate-200 pt-2.5 space-y-2">
+          <p class="text-xs font-bold text-slate-700">অন্য মোবাইলে স্ক্যানার সেটআপ</p>
+          <p class="text-[11px] text-slate-500">বিশ্বস্ত গেট ফোনে এই QR স্ক্যান করুন বা লিংক পাঠান — আর হাতে টোকেন লিখতে হবে না।</p>
+          <div class="flex gap-2"><button id="showPairQrBtn" type="button" class="rounded-lg bg-slate-900 text-white px-2.5 py-1.5 text-xs font-semibold">সেটআপ QR দেখান</button><button id="copyPairLinkBtn" type="button" class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold">লিংক কপি</button></div>
+          <div id="pairQrWrap" class="hidden bg-white p-2 rounded-lg border border-slate-200 text-center"></div>
+          <p id="pairStatus" class="text-[11px] text-emerald-700"></p>
+        </div>
       </form>
     </details>
     <span id="storeBadge" class="rounded-full bg-slate-100 text-slate-500 px-3 py-1.5 text-xs font-bold">সংযোগ পরীক্ষা হচ্ছে…</span><button id="refreshBtn" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">⟳ রিফ্রেশ</button></div></div></header>
+
   <main class="max-w-7xl mx-auto p-5 md:p-8 grid lg:grid-cols-[.9fr_1.1fr] gap-6">
     <section class="card p-5 md:p-7">
       <div class="mb-5"><p class="text-sm font-bold text-blue-600">নতুন শিক্ষার্থী</p><h2 class="text-2xl font-extrabold mt-1">রেজিস্ট্রেশন ও QR</h2><p class="text-sm text-slate-500 mt-2">Face model ব্রাউজারে চলে। ছবি বা face descriptor কোনো paid recognition API-তে পাঠানো হয় না।</p></div>
+      <div class="mb-5"><p class="text-sm font-bold text-blue-600">নতুন শিক্ষার্থী</p><h2 class="text-2xl font-extrabold mt-1">রেজিস্ট্রেশন, QR ও ID কার্ড</h2><p class="text-sm text-slate-500 mt-2">Face model ব্রাউজারে চলে। ছবি বা face descriptor কোনো paid recognition API-তে পাঠানো হয় না।</p></div>
       <form id="registerForm" class="space-y-4">
         <label class="block text-sm font-semibold">Student ID<input class="field mt-1.5" name="student_id" required maxlength="64" autocomplete="off" placeholder="যেমন: STU-1001"></label>
+        <label class="block text-sm font-semibold">Student ID<input class="field mt-1.5" name="student_id" required maxlength="64" autocomplete="off" placeholder="যেমন: STU-1006"></label>
         <label class="block text-sm font-semibold">পূর্ণ নাম<input class="field mt-1.5" name="name" required maxlength="160" placeholder="শিক্ষার্থীর নাম"></label>
         <label class="block text-sm font-semibold">শ্রেণি<input class="field mt-1.5" name="class_name" required maxlength="80" placeholder="যেমন: Class 5 - A"></label>
         <label class="block text-sm font-semibold">রেজিস্ট্রেশন ছবি <span class="font-normal text-slate-500">(JPEG/PNG)</span><input class="field mt-1.5" id="photoInput" type="file" accept="image/jpeg,image/png"></label>
         <div class="flex gap-2"><button type="button" id="cameraBtn" class="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">ওয়েবক্যাম</button><button type="button" id="captureBtn" class="hidden rounded-xl bg-blue-50 text-blue-700 px-4 py-2.5 font-semibold">ছবি তুলুন</button></div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="block text-sm font-semibold sm:col-span-1">শ্রেণি<input class="field mt-1.5" name="class_name" required maxlength="80" placeholder="Class 5"></label>
+          <label class="block text-sm font-semibold">শাখা <span class="font-normal text-slate-400">(ঐচ্ছিক)</span><input class="field mt-1.5" name="section" maxlength="40" placeholder="A"></label>
+          <label class="block text-sm font-semibold">রোল <span class="font-normal text-slate-400">(ঐচ্ছিক)</span><input class="field mt-1.5" name="roll_no" maxlength="40" placeholder="01"></label>
+        </div>
+        <label class="block text-sm font-semibold">রেজিস্ট্রেশন ও ID কার্ডের ছবি <span class="font-normal text-slate-500">(JPEG/PNG)</span><input class="field mt-1.5" id="photoInput" type="file" accept="image/jpeg,image/png"></label>
+        <div class="flex flex-wrap gap-2 items-center"><button type="button" id="cameraBtn" class="rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">ওয়েবক্যাম</button><button type="button" id="captureBtn" class="hidden rounded-xl bg-blue-50 text-blue-700 px-4 py-2.5 font-semibold">ছবি তুলুন</button></div>
         <video id="webcam" class="hidden w-full max-h-64 rounded-xl bg-slate-900 object-cover" autoplay playsinline></video><canvas id="captureCanvas" class="hidden"></canvas>
+        <div id="photoPreviewWrap" class="hidden flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5"><img id="photoPreview" alt="ছবি প্রিভিউ" class="w-14 h-16 object-cover rounded-lg border border-slate-200"><div class="text-xs text-slate-600"><p class="font-bold text-slate-800">ছবি প্রস্তুত</p><p>Face যাচাই ও Student ID কার্ডে এই ছবি ব্যবহার হবে।</p></div></div>
         <label class="flex gap-2 items-start text-xs text-slate-600"><input id="consent" type="checkbox" required class="mt-0.5"><span>আমি নিশ্চিত করছি যে অভিভাবকের অবহিত সম্মতি আছে। face descriptor বায়োমেট্রিক তথ্য হিসেবে বিবেচিত হবে।</span></label>
         <button id="submitBtn" class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-3 font-bold">শিক্ষার্থী রেজিস্টার করুন</button>
       </form>
@@ -42,7 +65,64 @@
       <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" disabled class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm disabled:opacity-50">CSV ডাউনলোড</button></div></div>
       <div id="reportMessage" class="text-sm text-slate-500 mb-3"></div><div class="table-wrap rounded-xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম</th><th>তারিখ</th><th>সময়</th><th>অবস্থা</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-slate-500 py-8">লোড হচ্ছে…</td></tr></tbody></table></div>
       <p class="text-xs text-slate-400 mt-4">শিক্ষার্থীর তথ্য সীমিত প্রবেশাধিকারে রাখুন।</p>
+
+      <div id="qrCard" class="hidden mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center space-y-3">
+        <div class="flex items-center justify-between text-left">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-blue-600">Student ID Card &amp; QR</p>
+            <p id="qrName" class="font-extrabold text-base text-slate-900"></p>
+            <p id="qrId" class="text-xs text-slate-500"></p>
+          </div>
+          <button id="closeQrCard" type="button" class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">বন্ধ</button>
+        </div>
+        <div id="printArea" class="flex flex-col items-center">
+          <canvas id="idCardCanvas" class="w-full max-w-[290px] rounded-2xl shadow-lg border border-slate-200 bg-white"></canvas>
+        </div>
+        <div class="pt-1">
+          <p class="text-[11px] font-semibold text-slate-500 mb-1.5">আলাদা QR কোড (পূর্ণ Quiet Zone সহ)</p>
+          <div id="qrcode" class="inline-flex bg-white p-2 rounded-xl border border-slate-200"></div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 text-left space-y-2">
+          <label class="block text-xs font-semibold text-slate-700">কার্ডের ছবি যোগ/বদলান (JPEG/PNG)<input id="cardPhotoInput" type="file" accept="image/jpeg,image/png" class="mt-1 block w-full text-xs text-slate-600"></label>
+          <details class="text-xs text-slate-600">
+            <summary class="cursor-pointer font-semibold text-slate-700">স্কুল ও অতিরিক্ত তথ্য (ঐচ্ছিক)</summary>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <label class="col-span-2 block">স্কুলের নাম<input id="cardSchoolInput" class="field mt-1 text-xs !py-1.5" placeholder="স্কুলের নাম"></label>
+              <label class="block">রক্তের গ্রুপ<input id="cardBloodInput" class="field mt-1 text-xs !py-1.5" placeholder="যেমন: B+"></label>
+              <label class="block">সেশন<input id="cardSessionInput" class="field mt-1 text-xs !py-1.5" placeholder="2026"></label>
+              <label class="col-span-2 block">মেয়াদ (Valid Until)<input id="cardValidInput" class="field mt-1 text-xs !py-1.5" placeholder="2027-12-31"></label>
+            </div>
+          </details>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2">
+          <button id="downloadIdCard" type="button" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-sm font-bold">🪪 ID কার্ড ডাউনলোড</button>
+          <button id="downloadQr" type="button" class="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 text-sm font-semibold">QR ডাউনলোড</button>
+          <button id="printCardBtn" type="button" class="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold">প্রিন্ট</button>
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p class="text-sm font-bold text-amber-900">পুরোনো শিক্ষার্থীর Face যোগ</p><p class="mt-1 text-xs text-amber-800">যাঁদের Student ID আগে থেকেই আছে কিন্তু face data নেই (যেমন আমদানি করা তালিকা), তাঁদের ছবি দিয়ে একবার Face যোগ করুন।</p><form id="enrollForm" class="mt-3 space-y-2"><input id="enrollStudentId" class="field" name="student_id" required maxlength="64" placeholder="Student ID, যেমন: STU-1001" autocomplete="off"><input class="field" id="enrollPhoto" type="file" accept="image/jpeg,image/png" required><button id="enrollBtn" class="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white py-2.5 font-semibold">Face যোগ করুন</button></form><div id="enrollMessage" class="mt-2 text-sm" role="status"></div></div>
     </section>
+
+    <div class="space-y-6">
+      <section class="card p-5 md:p-7">
+        <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" disabled class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm disabled:opacity-50">CSV ডাউনলোড</button></div></div>
+        <div id="reportMessage" class="text-sm text-slate-500 mb-3"></div><div class="table-wrap rounded-xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম</th><th>তারিখ</th><th>সময়</th><th>অবস্থা</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-slate-500 py-8">লোড হচ্ছে…</td></tr></tbody></table></div>
+        <p class="text-xs text-slate-400 mt-4">শিক্ষার্থীর তথ্য সীমিত প্রবেশাধিকারে রাখুন।</p>
+      </section>
+
+      <section class="card p-5 md:p-7">
+        <div class="flex flex-wrap justify-between items-end gap-3 mb-4">
+          <div><p class="text-sm font-bold text-blue-600">শিক্ষার্থী তালিকা</p><h2 class="text-xl font-extrabold mt-1">সকল শিক্ষার্থী ও ID কার্ড / QR</h2></div>
+          <span id="studentCountBadge" class="rounded-full bg-blue-50 text-blue-700 px-3 py-1.5 text-xs font-bold">0 জন</span>
+        </div>
+        <input id="studentSearch" class="field mb-3 text-sm" placeholder="Student ID, নাম বা শ্রেণি দিয়ে খুঁজুন…">
+        <div id="studentsMessage" class="text-sm text-slate-500 mb-2"></div>
+        <div class="table-wrap rounded-xl border border-slate-200 max-h-96">
+          <table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম ও শ্রেণি</th><th>Face</th><th>কার্ড</th></tr></thead><tbody id="studentRows"><tr><td colspan="4" class="text-center text-slate-500 py-6">লোড হচ্ছে…</td></tr></tbody></table>
+        </div>
+      </section>
+    </div>
   </main>
 <script>
   const API_BASE_URL = ""; // Render-এ একই origin. আলাদা Netlify site হলে এখানে Render URL দিন.
@@ -53,6 +133,8 @@
   let apiToken = '';
   try { apiToken = sessionStorage.getItem(TOKEN_KEY) || ''; } catch(e) {}
   const authHeaders = () => apiToken ? {'Authorization': `Bearer ${apiToken}`} : {};
+  const PHOTOS_KEY = 'attendance_student_photos';
+  const EXTRAS_KEY = 'attendance_student_card_extras';
   const $ = id => document.getElementById(id);
   const inputValue = (form, name) => form.elements.namedItem(name).value.trim();
   function authRequired(){ $('authSettings').open=true;$('authStatus').textContent='API টোকেন প্রয়োজন বা সঠিক নয়।'; }
@@ -62,10 +144,128 @@
   $('clearAuth').addEventListener('click',()=>{apiToken='';try{sessionStorage.removeItem(TOKEN_KEY)}catch(e){}$('authInput').value='';$('authStatus').textContent='টোকেন মুছে ফেলা হয়েছে।';loadAttendance()});
   let attendanceCache=[],cameraStream=null,capturedCanvas=null,modelsPromise=null,lastCardToken='';
   const modelOptions=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
+  const inputValue = (form, name) => form.elements?.namedItem?.(name)?.value?.trim() || '';
+
+  function readToken(){
+    let tok = '';
+    try {
+      const hash = window?.location?.hash || '';
+      const m = hash.match(/(?:^#|&)token=([^&]+)/);
+      if (m) {
+        tok = decodeURIComponent(m[1]).trim();
+        if (tok) {
+          saveToken(tok);
+          try { window.history?.replaceState?.(null, '', (window.location.pathname || '') + (window.location.search || '')); } catch(e) {}
+          return tok;
+        }
+      }
+    } catch(e) {}
+    try { if (typeof localStorage !== 'undefined') tok = localStorage.getItem(TOKEN_KEY) || ''; } catch(e) {}
+    if (!tok) { try { if (typeof sessionStorage !== 'undefined') tok = sessionStorage.getItem(TOKEN_KEY) || ''; } catch(e) {} }
+    return tok;
+  }
+  function saveToken(tok){
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(TOKEN_KEY, tok); } catch(e) {}
+    try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(TOKEN_KEY, tok); } catch(e) {}
+  }
+  function wipeToken(){
+    try { if (typeof localStorage !== 'undefined') localStorage.removeItem(TOKEN_KEY); } catch(e) {}
+    try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(TOKEN_KEY); } catch(e) {}
+  }
+
+  function readJsonMap(key){
+    try {
+      if (typeof localStorage === 'undefined') return {};
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+  function writeJsonMap(key, map){
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(map));
+    } catch(e) {}
+  }
+
+  let apiToken = readToken();
+  const authHeaders = () => apiToken ? {'Authorization': `Bearer ${apiToken}`} : {};
+  function syncAuthUi(){
+    $('authStatus').textContent = apiToken ? 'এই ডিভাইসে টোকেন সেভ করা আছে।' : 'টোকেন না লাগলে ফাঁকা রাখুন।';
+    if (apiToken) $('pairBox')?.classList?.remove('hidden');
+    else {
+      $('pairBox')?.classList?.add('hidden');
+      $('pairQrWrap')?.classList?.add('hidden');
+    }
+  }
+  function authRequired(){ $('authSettings').open = true; $('authStatus').textContent = 'API টোকেন প্রয়োজন বা সঠিক নয়।'; }
+  function checkAuth(response){ if (response.status === 401) { authRequired(); throw new Error('API টোকেন প্রয়োজন বা সঠিক নয়।'); } return response; }
+  syncAuthUi();
+
+  $('authForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const token = $('authInput').value.trim();
+    if (!token) { $('authStatus').textContent = 'টোকেন লিখুন।'; return; }
+    apiToken = token;
+    saveToken(apiToken);
+    $('authInput').value = '';
+    syncAuthUi();
+    $('authSettings').open = false;
+    loadSchoolSettings();
+    loadAttendance();
+    loadStudents();
+  });
+  $('clearAuth').addEventListener('click', () => {
+    apiToken = '';
+    wipeToken();
+    $('authInput').value = '';
+    syncAuthUi();
+    loadAttendance();
+    loadStudents();
+  });
+
+  function scannerPairUrl(){
+    const origin = window?.location?.origin || '';
+    return `${origin}/scanner#token=${encodeURIComponent(apiToken)}`;
+  }
+  $('showPairQrBtn')?.addEventListener('click', () => {
+    if (!apiToken) return;
+    const wrap = $('pairQrWrap');
+    wrap.innerHTML = '';
+    const crisp = buildCrispQrCanvas(scannerPairUrl(), 260, 4);
+    if (crisp.canvas) {
+      crisp.canvas.style.width = '190px';
+      crisp.canvas.style.height = '190px';
+      crisp.canvas.style.margin = '0 auto';
+      wrap.appendChild(crisp.canvas);
+    }
+    wrap.classList.remove('hidden');
+    $('pairStatus').textContent = 'নতুন মোবাইলের ক্যামেরা দিয়ে এই QR স্ক্যান করে লিংক খুলুন।';
+  });
+  $('copyPairLinkBtn')?.addEventListener('click', async () => {
+    if (!apiToken) return;
+    const url = scannerPairUrl();
+    try {
+      await navigator.clipboard?.writeText(url);
+      $('pairStatus').textContent = 'স্ক্যানার সেটআপ লিংক কপি হয়েছে।';
+    } catch(e) {
+      $('pairStatus').textContent = url;
+    }
+  });
+
+  let attendanceCache = [], studentsCache = [], cameraStream = null, capturedCanvas = null, modelsPromise = null;
+  let lastCardToken = '', currentQrCanvas = null, activeCardStudent = null, activeCardPhoto = null;
+  let schoolSettings = {school_name: 'স্কুল অ্যাটেনডেন্স', school_name_en: 'School Attendance', eiin: '', address: '', theme_color: '#1d4ed8', principal_name: '', session: String(new Date().getFullYear()), card_valid_until: ''};
+
+  const modelOptions = () => new faceapi.TinyFaceDetectorOptions({inputSize: 320, scoreThreshold: .5});
   async function loadFaceModels(){
     if(typeof faceapi==='undefined')throw new Error('Face library লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।');
     // A failed download is cleared so the next attempt retries instead of reusing the error.
     if(!modelsPromise)modelsPromise=Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]).catch(err=>{modelsPromise=null;throw err});
+    if (typeof faceapi === 'undefined') throw new Error('Face library লোড হয়নি। ইন্টারনেট সংযোগ দেখুন।');
+    if (!modelsPromise) modelsPromise = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]).catch(err => { modelsPromise = null; throw err; });
     await modelsPromise;
   }
   function cameraErrorMessage(e){
@@ -79,10 +279,72 @@
     return 'ক্যামেরা চালু হয়নি। '+(e?.message??e??'');
   }
   function showMessage(node,text,error=false){node.textContent=text;node.className=`mt-4 text-sm ${error?'text-red-600':'text-emerald-700'}`}
+    const t = `${e?.name||''} ${e?.message??e??''}`;
+    if (/InsecureContext/.test(t)) return e.message;
+    if (/NoMediaDevices/.test(t)) return e.message;
+    if (/NotAllowed|Permission|denied/i.test(t)) return 'ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের সাইট সেটিংস থেকে Camera → Allow করে পেজ রিলোড করুন।';
+    if (/NotFound|DevicesNotFound/i.test(t)) return 'এই ডিভাইসে ক্যামেরা পাওয়া যায়নি।';
+    if (/NotReadable|TrackStart|in use/i.test(t)) return 'ক্যামেরা অন্য অ্যাপ বা ট্যাবে ব্যবহার হচ্ছে। সেটি বন্ধ করে আবার চেষ্টা করুন।';
+    if (/Overconstrained/i.test(t)) return 'ক্যামেরা এই সেটিং সমর্থন করে না।';
+    return 'ক্যামেরা চালু হয়নি। ' + (e?.message??e??'');
+  }
+  function showMessage(node, text, error = false){ node.textContent = text; node.className = `mt-4 text-sm ${error ? 'text-red-600' : 'text-emerald-700'}`; }
+
+  function updatePhotoPreview(dataUrl){
+    if (!dataUrl || !$('photoPreviewWrap')) return;
+    $('photoPreview').src = dataUrl;
+    $('photoPreviewWrap').classList.remove('hidden');
+  }
+
+  function makeThumbnailDataUrl(source, maxW = 200, maxH = 240){
+    try {
+      const c = document.createElement('canvas');
+      if (!c || typeof c.getContext !== 'function') return '';
+      const sw = source.videoWidth || source.naturalWidth || source.width || 0;
+      const sh = source.videoHeight || source.naturalHeight || source.height || 0;
+      if (!sw || !sh) return '';
+      const scale = Math.min(maxW / sw, maxH / sh, 1);
+      c.width = Math.max(1, Math.round(sw * scale));
+      c.height = Math.max(1, Math.round(sh * scale));
+      c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.78);
+    } catch(e) { return ''; }
+  }
+
+  function saveStudentPhoto(studentId, source){
+    if (!studentId || !source) return '';
+    const dataUrl = typeof source === 'string' ? source : makeThumbnailDataUrl(source);
+    if (!dataUrl) return '';
+    const map = readJsonMap(PHOTOS_KEY);
+    map[studentId] = dataUrl;
+    writeJsonMap(PHOTOS_KEY, map);
+    return dataUrl;
+  }
+
+  function getStudentPhoto(studentId){
+    return readJsonMap(PHOTOS_KEY)[studentId] || '';
+  }
+
+  async function loadImageFromFile(file){
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('ছবিটি খোলা যায়নি।'));
+        img.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
   async function descriptorFrom(source){
     await loadFaceModels();
     const found=await faceapi.detectAllFaces(source,modelOptions()).withFaceLandmarks().withFaceDescriptors();
     if(found.length!==1)throw new Error(found.length===0?'ছবিতে মুখ শনাক্ত হয়নি। আলো ঠিক করে আবার তুলুন।':'ছবিতে একাধিক মুখ আছে; শুধু একজনের ছবি দিন।');
+    const found = await faceapi.detectAllFaces(source, modelOptions()).withFaceLandmarks().withFaceDescriptors();
+    if (found.length !== 1) throw new Error(found.length === 0 ? 'ছবিতে মুখ শনাক্ত হয়নি। আলো ঠিক করে আবার তুলুন।' : 'ছবিতে একাধিক মুখ আছে; শুধু একজনের ছবি দিন।');
     return Array.from(found[0].descriptor);
   }
   $('cameraBtn').addEventListener('click',async()=>{
@@ -97,6 +359,301 @@
       loadFaceModels().catch(err=>showMessage($('registerMessage'),'Face model লোড হয়নি: '+(err.message||'ইন্টারনেট দেখুন।'),true));
     }
     catch(e){showMessage($('registerMessage'),cameraErrorMessage(e),true)}
+
+  // Render pixel-crisp QR modules with a full 4-module pure white quiet zone
+  // so downloaded PNGs scan reliably even in dark-mode viewers.
+  function buildCrispQrCanvas(text, targetSize = 320, quietModules = 4){
+    if (typeof QRCode === 'undefined') throw new Error('QR কোড লাইব্রেরি লোড হয়নি। ইন্টারনেট সংযোগ দেখে রিলোড করুন।');
+    const tmp = document.createElement('div');
+    const level = QRCode.CorrectLevel?.M ?? QRCode.CorrectLevel?.H ?? 0;
+    const qr = new QRCode(tmp, {
+      text,
+      width: targetSize,
+      height: targetSize,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: level,
+    });
+    const model = qr?._oQRCode;
+    if (!model || typeof model.getModuleCount !== 'function') {
+      return {qr, canvas: tmp.querySelector?.('canvas') || null, img: tmp.querySelector?.('img') || null};
+    }
+    const count = model.getModuleCount();
+    const totalModules = count + quietModules * 2;
+    const modulePx = Math.max(4, Math.floor(targetSize / totalModules));
+    const size = totalModules * modulePx;
+    const canvas = document.createElement('canvas');
+    if (!canvas || typeof canvas.getContext !== 'function') {
+      return {qr, canvas: null, img: null};
+    }
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000000';
+    for (let r = 0; r < count; r++) {
+      for (let c = 0; c < count; c++) {
+        if (model.isDark(r, c)) {
+          ctx.fillRect((c + quietModules) * modulePx, (r + quietModules) * modulePx, modulePx, modulePx);
+        }
+      }
+    }
+    return {qr, canvas, img: null};
+  }
+
+  function roundedRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawCoverImage(ctx, img, x, y, w, h){
+    const iw = img.naturalWidth || img.videoWidth || img.width || 0;
+    const ih = img.naturalHeight || img.videoHeight || img.height || 0;
+    if (!iw || !ih) return false;
+    const scale = Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    return true;
+  }
+
+  function renderStudentIdCard(student, qrCanvas, photoSource){
+    const canvas = $('idCardCanvas');
+    if (!canvas || typeof canvas.getContext !== 'function') return;
+    const W = 640, H = 980;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const extras = readJsonMap(EXTRAS_KEY)[student.student_id] || {};
+    const theme = schoolSettings.theme_color || '#1d4ed8';
+    const schoolTitle = $('cardSchoolInput')?.value?.trim() || schoolSettings.school_name || 'স্কুল অ্যাটেনডেন্স';
+    const schoolSub = schoolSettings.school_name_en && schoolSettings.school_name_en !== schoolTitle
+      ? schoolSettings.school_name_en
+      : (schoolSettings.address || 'Student Identity Card');
+
+    // Card base
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // Header banner
+    ctx.fillStyle = theme;
+    ctx.fillRect(0, 0, W, 178);
+    ctx.fillStyle = '#ffffff33';
+    ctx.fillRect(0, 170, W, 8);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#dbeafe';
+    ctx.font = 'bold 18px system-ui, "Noto Sans Bengali", sans-serif';
+    ctx.fillText('STUDENT IDENTITY CARD', W / 2, 42);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px system-ui, "Noto Sans Bengali", sans-serif';
+    ctx.fillText(schoolTitle.slice(0, 34), W / 2, 88);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '600 18px system-ui, "Noto Sans Bengali", sans-serif';
+    const metaLine = [schoolSub, schoolSettings.eiin ? `EIIN: ${schoolSettings.eiin}` : ''].filter(Boolean).join(' • ');
+    ctx.fillText(metaLine.slice(0, 48), W / 2, 126);
+
+    // Photo box
+    const px = 215, py = 148, pw = 210, ph = 240;
+    ctx.save();
+    roundedRectPath(ctx, px - 6, py - 6, pw + 12, ph + 12, 24);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    roundedRectPath(ctx, px, py, pw, ph, 18);
+    ctx.clip();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(px, py, pw, ph);
+    if (photoSource && drawCoverImage(ctx, photoSource, px, py, pw, ph)) {
+      // drawn
+    } else {
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(px + pw / 2, py + 88, 42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px + pw / 2, py + 215, 76, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 16px system-ui, "Noto Sans Bengali", sans-serif';
+      ctx.fillText('ছবি যোগ করুন', px + pw / 2, py + ph - 14);
+    }
+    ctx.restore();
+
+    // Student Name & ID badge
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 34px system-ui, "Noto Sans Bengali", sans-serif';
+    ctx.fillText(String(student.name || '').slice(0, 28), W / 2, 434);
+
+    const idBadge = `ID: ${student.student_id}`;
+    ctx.font = 'bold 20px ui-monospace, SFMono-Regular, monospace';
+    const badgeW = Math.min(460, Math.max(210, ctx.measureText(idBadge).width + 44));
+    ctx.save();
+    roundedRectPath(ctx, (W - badgeW) / 2, 452, badgeW, 38, 19);
+    ctx.fillStyle = '#eff6ff';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#bfdbfe';
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillText(idBadge, W / 2, 478);
+
+    // Info grid
+    const session = $('cardSessionInput')?.value?.trim() || student.session || schoolSettings.session || '';
+    const validUntil = $('cardValidInput')?.value?.trim() || student.valid_until || schoolSettings.card_valid_until || '';
+    const blood = $('cardBloodInput')?.value?.trim() || extras.blood || '';
+    const classLine = [student.class_name, student.section ? `শাখা: ${student.section}` : '', student.roll_no ? `রোল: ${student.roll_no}` : ''].filter(Boolean).join('  •  ');
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 22px system-ui, "Noto Sans Bengali", sans-serif';
+    ctx.fillText(classLine.slice(0, 42), W / 2, 526);
+
+    const subDetails = [session ? `সেশন: ${session}` : '', blood ? `Blood: ${blood}` : '', validUntil ? `মেয়াদ: ${validUntil}` : ''].filter(Boolean).join('   |   ');
+    if (subDetails) {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '600 18px system-ui, "Noto Sans Bengali", sans-serif';
+      ctx.fillText(subDetails.slice(0, 52), W / 2, 558);
+    }
+
+    // Crisp QR section
+    const qrBoxSize = 290;
+    const qrX = (W - qrBoxSize) / 2, qrY = 582;
+    ctx.save();
+    roundedRectPath(ctx, qrX - 10, qrY - 10, qrBoxSize + 20, qrBoxSize + 20, 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.stroke();
+    ctx.restore();
+    if (qrCanvas) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(qrCanvas, qrX, qrY, qrBoxSize, qrBoxSize);
+      ctx.imageSmoothingEnabled = true;
+    }
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '600 14px ui-monospace, SFMono-Regular, monospace';
+    ctx.fillText(`CARD: ${student.card_token || student.student_id}`, W / 2, 904);
+
+    // Footer band
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, H - 52, W, 52);
+    ctx.fillStyle = '#475569';
+    ctx.font = '600 16px system-ui, "Noto Sans Bengali", sans-serif';
+    const footerText = schoolSettings.principal_name ? `অধ্যক্ষ / প্রধান: ${schoolSettings.principal_name}` : 'স্কুল গেটে QR + Face স্ক্যান করুন';
+    ctx.fillText(footerText.slice(0, 48), W / 2, H - 20);
+  }
+
+  async function openStudentCard(student, directPhotoSource = null){
+    activeCardStudent = student;
+    const cardToken = student.card_token || student.student_id;
+    lastCardToken = cardToken;
+    $('qrName').textContent = student.name;
+    $('qrId').textContent = `ID: ${student.student_id} • শ্রেণি: ${student.class_name} • কার্ড: ${cardToken}`;
+    $('qrcode').innerHTML = '';
+
+    const extras = readJsonMap(EXTRAS_KEY)[student.student_id] || {};
+    if ($('cardSchoolInput') && !$('cardSchoolInput').value) $('cardSchoolInput').value = schoolSettings.school_name || '';
+    if ($('cardBloodInput')) $('cardBloodInput').value = extras.blood || '';
+    if ($('cardSessionInput')) $('cardSessionInput').value = extras.session ?? (student.session || schoolSettings.session || '');
+    if ($('cardValidInput')) $('cardValidInput').value = extras.valid_until ?? (student.valid_until || schoolSettings.card_valid_until || '');
+
+    const built = buildCrispQrCanvas(cardToken, 320, 4);
+    currentQrCanvas = built.canvas;
+    if (built.canvas) {
+      built.canvas.style.width = '180px';
+      built.canvas.style.height = '180px';
+      $('qrcode').appendChild?.(built.canvas);
+    }
+
+    let photoSource = directPhotoSource;
+    if (!photoSource) {
+      const cached = getStudentPhoto(student.student_id);
+      if (cached && typeof Image !== 'undefined') {
+        photoSource = await new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = cached;
+        });
+      }
+    }
+    activeCardPhoto = photoSource || null;
+    renderStudentIdCard(student, currentQrCanvas, activeCardPhoto);
+    $('qrCard').classList.remove('hidden');
+    $('qrCard').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
+  }
+
+  function redrawActiveCard(){
+    if (!activeCardStudent) return;
+    renderStudentIdCard(activeCardStudent, currentQrCanvas, activeCardPhoto);
+  }
+
+  function downloadCanvasPng(canvas, fallbackImg, filename){
+    if (canvas && typeof canvas.toBlob === 'function') {
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
+      return;
+    }
+    const url = canvas?.toDataURL?.('image/png') || fallbackImg?.src;
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  $('closeQrCard')?.addEventListener('click', () => $('qrCard').classList.add('hidden'));
+
+  $('cardPhotoInput')?.addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    if (!file || !activeCardStudent) return;
+    try {
+      const img = await loadImageFromFile(file);
+      saveStudentPhoto(activeCardStudent.student_id, img);
+      activeCardPhoto = img;
+      redrawActiveCard();
+    } catch(err) {
+      showMessage($('registerMessage'), err.message || 'ছবি খোলা যায়নি।', true);
+    }
+  });
+
+  ['cardSchoolInput', 'cardBloodInput', 'cardSessionInput', 'cardValidInput'].forEach(id => {
+    $(id)?.addEventListener('input', () => {
+      if (!activeCardStudent) return;
+      const extras = readJsonMap(EXTRAS_KEY);
+      extras[activeCardStudent.student_id] = {
+        blood: $('cardBloodInput')?.value?.trim() || '',
+        session: $('cardSessionInput')?.value ?? '',
+        valid_until: $('cardValidInput')?.value ?? '',
+      };
+      writeJsonMap(EXTRAS_KEY, extras);
+      redrawActiveCard();
+    });
+  });
+
+  $('downloadIdCard')?.addEventListener('click', () => {
+    const sid = activeCardStudent?.student_id || lastCardToken || 'card';
+    downloadCanvasPng($('idCardCanvas'), null, `id-card-${sid}.png`);
   });
   $('captureBtn').addEventListener('click',()=>{const v=$('webcam'),c=$('captureCanvas');c.width=v.videoWidth;c.height=v.videoHeight;if(!c.width)return; c.getContext('2d').drawImage(v,0,0);capturedCanvas=c;$('photoInput').value='';showMessage($('registerMessage'),'ছবি নেওয়া হয়েছে; রেজিস্টারে মুখের descriptor তৈরি হবে।')});
   $('photoInput').addEventListener('change',()=>capturedCanvas=null);
@@ -116,16 +673,214 @@
       if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;$('webcam').classList.add('hidden');$('captureBtn').classList.add('hidden')}
     }catch(err){showMessage($('registerMessage'),err.message||'Backend-এ সংযোগ করা যায়নি।',true)}
     finally{$('submitBtn').disabled=false;$('submitBtn').textContent='শিক্ষার্থী রেজিস্টার করুন'}
+
+  $('downloadQr').addEventListener('click', () => {
+    const canvas = currentQrCanvas || $('qrcode').querySelector('canvas');
+    const img = $('qrcode').querySelector('img');
+    const sid = activeCardStudent?.student_id || lastCardToken || 'card';
+    downloadCanvasPng(canvas, img, `qr-${sid}-${lastCardToken || 'card'}.png`);
   });
   $('downloadQr').addEventListener('click',()=>{const canvas=$('qrcode').querySelector('canvas'),img=$('qrcode').querySelector('img'),url=canvas?canvas.toDataURL('image/png'):img?.src;if(!url)return;const a=document.createElement('a');a.href=url;a.download=`student-${lastCardToken||'card'}.png`;a.click()});
   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+  $('printCardBtn')?.addEventListener('click', () => window?.print?.());
+
+  $('cameraBtn').addEventListener('click', async () => {
+    try {
+      if (!window.isSecureContext) throw Object.assign(new Error('ক্যামেরার জন্য HTTPS লিংক দরকার।'), {name: 'InsecureContext'});
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('এই ব্রাউজারে ক্যামেরা সাপোর্ট নেই। Chrome বা Safari ব্যবহার করুন।'), {name: 'NoMediaDevices'});
+      if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'user'}}, audio: false});
+      $('webcam').srcObject = cameraStream;
+      $('webcam').classList.remove('hidden');
+      $('captureBtn').classList.remove('hidden');
+      $('webcam').play().catch(() => {});
+      showMessage($('registerMessage'), 'ক্যামেরা চালু। মুখটি ফ্রেমে রাখুন।');
+      loadFaceModels().catch(err => showMessage($('registerMessage'), 'Face model লোড হয়নি: ' + (err.message || 'ইন্টারনেট দেখুন।'), true));
+    } catch(e) { showMessage($('registerMessage'), cameraErrorMessage(e), true); }
+  });
+
+  $('captureBtn').addEventListener('click', () => {
+    const v = $('webcam'), c = $('captureCanvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    if (!c.width) return;
+    c.getContext('2d').drawImage(v, 0, 0);
+    capturedCanvas = c;
+    $('photoInput').value = '';
+    updatePhotoPreview(makeThumbnailDataUrl(c));
+    showMessage($('registerMessage'), 'ছবি নেওয়া হয়েছে; রেজিস্টারে মুখের descriptor ও ID কার্ড তৈরি হবে।');
+  });
+
+  $('photoInput').addEventListener('change', async () => {
+    capturedCanvas = null;
+    const file = $('photoInput').files?.[0];
+    if (!file) { $('photoPreviewWrap')?.classList?.add('hidden'); return; }
+    try {
+      const img = await loadImageFromFile(file);
+      updatePhotoPreview(makeThumbnailDataUrl(img));
+    } catch(e) {}
+  });
+
+  $('registerForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget, file = $('photoInput').files[0];
+    if (!capturedCanvas && !file) { showMessage($('registerMessage'), 'ছবি আপলোড করুন অথবা ওয়েবক্যাম থেকে ছবি তুলুন।', true); return; }
+    $('submitBtn').disabled = true; $('submitBtn').textContent = 'মুখ প্রসেস হচ্ছে…';
+    try {
+      const source = capturedCanvas || await loadImageFromFile(file);
+      const descriptor = await descriptorFrom(source);
+      const sid = inputValue(form, 'student_id');
+      const sname = inputValue(form, 'name');
+      const sclass = inputValue(form, 'class_name');
+      const ssection = inputValue(form, 'section');
+      const sroll = inputValue(form, 'roll_no');
+      const payload = {student_id: sid, name: sname, class_name: sclass, face_descriptor: descriptor};
+      if (ssection) payload.section = ssection;
+      if (sroll) payload.roll_no = sroll;
+
+      const response = checkAuth(await fetch(`${API_BASE_URL}/api/register`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', ...authHeaders()},
+        body: JSON.stringify(payload),
+      }));
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || 'রেজিস্ট্রেশন ব্যর্থ।');
+
+      saveStudentPhoto(result.student_id, source);
+      showMessage($('registerMessage'), `রেজিস্টার সফল: ${result.student_name} (QR ও Student ID কার্ড তৈরি হয়েছে)`);
+      await openStudentCard({
+        student_id: result.student_id,
+        name: result.student_name,
+        class_name: result.class_name || sclass,
+        section: result.section || ssection,
+        roll_no: result.roll_no || sroll,
+        card_token: result.card_token || result.student_id,
+      }, source);
+
+      form.reset();
+      capturedCanvas = null;
+      $('photoPreviewWrap')?.classList?.add('hidden');
+      loadAttendance();
+      loadStudents();
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+        $('webcam').classList.add('hidden');
+        $('captureBtn').classList.add('hidden');
+      }
+    } catch(err) {
+      showMessage($('registerMessage'), err.message || 'Backend-এ সংযোগ করা যায়নি।', true);
+    } finally {
+      $('submitBtn').disabled = false;
+      $('submitBtn').textContent = 'শিক্ষার্থী রেজিস্টার করুন';
+    }
+  });
+
+  function escapeHtml(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function renderStudentsTable(){
+    const q = ($('studentSearch')?.value || '').trim().toLowerCase();
+    const filtered = q
+      ? studentsCache.filter(s => `${s.student_id} ${s.name} ${s.class_name} ${s.section} ${s.roll_no}`.toLowerCase().includes(q))
+      : studentsCache;
+    $('studentCountBadge').textContent = `${studentsCache.length} জন`;
+    if (!filtered.length) {
+      $('studentRows').innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-6">কোনো শিক্ষার্থী পাওয়া যায়নি।</td></tr>';
+      return;
+    }
+    $('studentRows').innerHTML = filtered.map((s, idx) => {
+      const safeId = escapeHtml(s.student_id);
+      const sub = [s.class_name, s.section ? `শাখা ${s.section}` : '', s.roll_no ? `রোল ${s.roll_no}` : ''].filter(Boolean).join(' • ');
+      const faceBadge = s.has_face
+        ? '<span class="rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs font-semibold">আছে</span>'
+        : `<button type="button" data-enroll-id="${safeId}" class="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold hover:bg-amber-200">+ Face যোগ</button>`;
+      const realIndex = studentsCache.indexOf(s);
+      return `<tr>
+        <td class="font-mono font-semibold">${safeId}</td>
+        <td><div class="font-semibold text-slate-900">${escapeHtml(s.name)}</div><div class="text-xs text-slate-500">${escapeHtml(sub)}</div></td>
+        <td>${faceBadge}</td>
+        <td><button type="button" data-card-idx="${realIndex}" class="rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1.5 text-xs font-bold">QR / ID কার্ড</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  $('studentSearch')?.addEventListener('input', renderStudentsTable);
+  $('studentRows')?.addEventListener('click', e => {
+    const cardBtn = e.target?.closest?.('[data-card-idx]');
+    if (cardBtn) {
+      const student = studentsCache[Number(cardBtn.getAttribute('data-card-idx'))];
+      if (student) openStudentCard(student);
+      return;
+    }
+    const enrollBtn = e.target?.closest?.('[data-enroll-id]');
+    if (enrollBtn && $('enrollStudentId')) {
+      $('enrollStudentId').value = enrollBtn.getAttribute('data-enroll-id');
+      $('enrollForm')?.scrollIntoView?.({behavior: 'smooth', block: 'center'});
+    }
+  });
+
+  async function loadStudents(){
+    if (!$('studentRows')) return;
+    $('studentsMessage').textContent = 'শিক্ষার্থী তালিকা লোড হচ্ছে…';
+    $('studentsMessage').className = 'text-sm text-slate-500 mb-2';
+    try {
+      const response = checkAuth(await fetch(`${API_BASE_URL}/api/students`, {headers: authHeaders()}));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'তালিকা পাওয়া যায়নি');
+      studentsCache = Array.isArray(data) ? data : [];
+      $('studentsMessage').textContent = '';
+      renderStudentsTable();
+    } catch(err) {
+      studentsCache = [];
+      $('studentCountBadge').textContent = '0 জন';
+      $('studentRows').innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-6">তালিকা লোড করা যায়নি।</td></tr>';
+      $('studentsMessage').textContent = err.message;
+      $('studentsMessage').className = 'text-sm text-red-600 mb-2';
+    }
+  }
+
+  async function loadSchoolSettings(){
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/school-settings`, {headers: authHeaders()});
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data && typeof data === 'object') {
+        schoolSettings = {...schoolSettings, ...data};
+        if ($('cardSchoolInput') && !$('cardSchoolInput').value) $('cardSchoolInput').value = schoolSettings.school_name || '';
+      }
+    } catch(e) {}
+  }
+
   async function loadAttendance(){
     $('reportMessage').textContent='রিপোর্ট লোড হচ্ছে…';
     try{const response=checkAuth(await fetch(`${API_BASE_URL}/api/attendance`,{headers:authHeaders()})),data=await response.json();if(!response.ok)throw new Error(data.detail||'রিপোর্ট পাওয়া যায়নি');attendanceCache=data;$('csvBtn').disabled=false;$('reportDate').textContent=`তারিখ: ${new Intl.DateTimeFormat('bn-BD',{dateStyle:'full',timeZone:'Asia/Dhaka'}).format(new Date())}`;$('countBadge').textContent=`${data.length} জন`;
       $('attendanceRows').innerHTML=data.length?data.map(r=>`<tr><td class="font-mono font-semibold">${escapeHtml(r.student_id)}</td><td class="font-semibold">${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td><span class="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">${escapeHtml(r.status)}</span></td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-slate-500 py-8">আজ এখনো কোনো উপস্থিতি নেই।</td></tr>';$('reportMessage').textContent='';
     }catch(err){attendanceCache=[];$('csvBtn').disabled=true;$('countBadge').textContent='0 জন';$('attendanceRows').innerHTML='<tr><td colspan="5" class="text-center text-slate-500 py-8">রিপোর্ট লোড করা যায়নি।</td></tr>';$('reportMessage').textContent=err.message;$('reportMessage').className='text-sm text-red-600 mb-3'}
+    $('reportMessage').textContent = 'রিপোর্ট লোড হচ্ছে…';
+    $('reportMessage').className = 'text-sm text-slate-500 mb-3';
+    try {
+      const response = checkAuth(await fetch(`${API_BASE_URL}/api/attendance`, {headers: authHeaders()})), data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'রিপোর্ট পাওয়া যায়নি');
+      attendanceCache = data;
+      $('csvBtn').disabled = false;
+      $('reportDate').textContent = `তারিখ: ${new Intl.DateTimeFormat('bn-BD', {dateStyle: 'full', timeZone: 'Asia/Dhaka'}).format(new Date())}`;
+      $('countBadge').textContent = `${data.length} জন`;
+      $('attendanceRows').innerHTML = data.length
+        ? data.map(r => `<tr><td class="font-mono font-semibold">${escapeHtml(r.student_id)}</td><td class="font-semibold">${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td><span class="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">${escapeHtml(r.status)}</span></td></tr>`).join('')
+        : '<tr><td colspan="5" class="text-center text-slate-500 py-8">আজ এখনো কোনো উপস্থিতি নেই।</td></tr>';
+      $('reportMessage').textContent = '';
+    } catch(err) {
+      attendanceCache = [];
+      $('csvBtn').disabled = true;
+      $('countBadge').textContent = '0 জন';
+      $('attendanceRows').innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-8">রিপোর্ট লোড করা যায়নি।</td></tr>';
+      $('reportMessage').textContent = err.message;
+      $('reportMessage').className = 'text-sm text-red-600 mb-3';
+    }
   }
   function dhakaDate(){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-')}
+
+  function dhakaDate(){ const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(new Date()); return ['year', 'month', 'day'].map(type => parts.find(p => p.type === type).value).join('-'); }
   function csvCell(value){
     const text=String(value??'');
     // Excel can execute formulas even in quoted CSV fields; force text for
@@ -140,6 +895,17 @@
     link.href=url;link.download=`attendance-${dhakaDate()}.csv`;
     document.body.appendChild(link);link.click();link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
+    const text = String(value ?? '');
+    const safe = /^\s*[=+\-@]/.test(text) ? "'" + text : text;
+    return '"' + safe.replace(/"/g, '""') + '"';
+  }
+  $('csvBtn').addEventListener('click', () => {
+    const rows = [['Student ID', 'Name', 'Date', 'Time', 'Status'], ...attendanceCache.map(r => [r.student_id, r.name, r.date, r.time, r.status])];
+    const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const link = document.createElement('a'), url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+    link.href = url; link.download = `attendance-${dhakaDate()}.csv`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   $('enrollForm').addEventListener('submit',async e=>{
     e.preventDefault();const form=e.currentTarget,file=$('enrollPhoto').files[0];
@@ -153,10 +919,36 @@
       const response=checkAuth(await fetch(`${API_BASE_URL}/api/enroll-face`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({student_id:inputValue(form,'student_id'),face_descriptor:descriptor})}));
       const result=await response.json();if(!response.ok)throw new Error(result.detail||'Face যোগ করা যায়নি।');
       showMessage($('enrollMessage'),`Face যোগ হয়েছে: ${result.student_id}`);
+
+  $('enrollForm').addEventListener('submit', async e => {
+    e.preventDefault(); const form = e.currentTarget, file = $('enrollPhoto').files[0];
+    if (!file) { showMessage($('enrollMessage'), 'ছবি বেছে নিন।', true); return; }
+    $('enrollBtn').disabled = true; $('enrollBtn').textContent = 'মুখ প্রসেস হচ্ছে…';
+    try {
+      const img = await loadImageFromFile(file);
+      const descriptor = await descriptorFrom(img);
+      const response = checkAuth(await fetch(`${API_BASE_URL}/api/enroll-face`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', ...authHeaders()},
+        body: JSON.stringify({student_id: inputValue(form, 'student_id'), face_descriptor: descriptor}),
+      }));
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || 'Face যোগ করা যায়নি।');
+      saveStudentPhoto(result.student_id, img);
+      showMessage($('enrollMessage'), `Face যোগ হয়েছে: ${result.student_id}`);
       form.reset();
     }catch(err){showMessage($('enrollMessage'),err.message||'Face যোগ করা যায়নি।',true)}
     finally{if(objectUrl)URL.revokeObjectURL(objectUrl);$('enrollBtn').disabled=false;$('enrollBtn').textContent='Face যোগ করুন'}
+      await loadStudents();
+      const matched = studentsCache.find(s => s.student_id === result.student_id);
+      if (matched) await openStudentCard(matched, img);
+    } catch(err) {
+      showMessage($('enrollMessage'), err.message || 'Face যোগ করা যায়নি।', true);
+    } finally {
+      $('enrollBtn').disabled = false; $('enrollBtn').textContent = 'Face যোগ করুন';
+    }
   });
+
   async function loadHealth(){
     const badge=$('storeBadge');
     try{
@@ -168,5 +960,21 @@
     }catch(e){badge.textContent='● সার্ভারে সংযোগ নেই';badge.className='rounded-full bg-red-50 text-red-600 px-3 py-1.5 text-xs font-bold'}
   }
   $('refreshBtn').addEventListener('click',()=>{loadHealth();loadAttendance()});loadHealth();loadAttendance();
+    const badge = $('storeBadge');
+    try {
+      const response = await fetch(`${API_BASE_URL}/health`);
+      if (!response.ok) throw new Error('Health check failed');
+      const data = await response.json();
+      if (data.auth_required && !apiToken) authRequired();
+      const supa = data.storage === 'supabase';
+      badge.textContent = supa ? '● Supabase ব্যাকএন্ড' : '● লোকাল SQLite';
+      badge.className = `rounded-full px-3 py-1.5 text-xs font-bold ${supa ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`;
+    } catch(e) {
+      badge.textContent = '● সার্ভারে সংযোগ নেই';
+      badge.className = 'rounded-full bg-red-50 text-red-600 px-3 py-1.5 text-xs font-bold';
+    }
+  }
+  $('refreshBtn').addEventListener('click', () => { loadHealth(); loadSchoolSettings(); loadAttendance(); loadStudents(); });
+  loadHealth(); loadSchoolSettings(); loadAttendance(); loadStudents();
 </script>
 </body></html>
