@@ -11,7 +11,16 @@
   </style>
 </head>
 <body>
-  <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-3"><div><p class="text-xs uppercase tracking-[.22em] text-blue-600 font-bold">SCHOOL • ATTENDANCE</p><h1 class="text-xl md:text-2xl font-extrabold mt-1">অ্যাডমিন ড্যাশবোর্ড</h1></div><div class="flex items-center gap-2"><span id="storeBadge" class="rounded-full bg-slate-100 text-slate-500 px-3 py-1.5 text-xs font-bold">সংযোগ পরীক্ষা হচ্ছে…</span><button id="refreshBtn" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">⟳ রিফ্রেশ</button></div></div></header>
+  <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs uppercase tracking-[.22em] text-blue-600 font-bold">SCHOOL • ATTENDANCE</p><h1 class="text-xl md:text-2xl font-extrabold mt-1">অ্যাডমিন ড্যাশবোর্ড</h1></div><div class="flex flex-wrap items-center gap-2">
+    <details id="authSettings" class="relative"><summary class="list-none cursor-pointer rounded-xl border border-slate-300 px-4 py-2.5 font-semibold">API টোকেন</summary>
+      <form id="authForm" class="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-xl space-y-2">
+        <label for="authInput" class="block text-sm font-semibold">API_ACCESS_TOKEN (Supabase key নয়)</label>
+        <input id="authInput" class="field" type="password" autocomplete="off" placeholder="API টোকেন লিখুন">
+        <p id="authStatus" class="text-xs text-slate-600" role="status"></p>
+        <div class="flex gap-2"><button type="submit" class="rounded-lg bg-blue-600 text-white px-3 py-2 text-sm font-semibold">সেট করুন</button><button id="clearAuth" type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">মুছুন</button></div>
+      </form>
+    </details>
+    <span id="storeBadge" class="rounded-full bg-slate-100 text-slate-500 px-3 py-1.5 text-xs font-bold">সংযোগ পরীক্ষা হচ্ছে…</span><button id="refreshBtn" class="rounded-xl bg-slate-900 text-white px-4 py-2.5 font-semibold">⟳ রিফ্রেশ</button></div></div></header>
   <main class="max-w-7xl mx-auto p-5 md:p-8 grid lg:grid-cols-[.9fr_1.1fr] gap-6">
     <section class="card p-5 md:p-7">
       <div class="mb-5"><p class="text-sm font-bold text-blue-600">নতুন শিক্ষার্থী</p><h2 class="text-2xl font-extrabold mt-1">রেজিস্ট্রেশন ও QR</h2><p class="text-sm text-slate-500 mt-2">Face model ব্রাউজারে চলে। ছবি বা face descriptor কোনো paid recognition API-তে পাঠানো হয় না।</p></div>
@@ -30,7 +39,7 @@
       <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p class="text-sm font-bold text-amber-900">পুরোনো শিক্ষার্থীর Face যোগ</p><p class="mt-1 text-xs text-amber-800">যাঁদের Student ID আগে থেকেই আছে কিন্তু face data নেই (যেমন আমদানি করা তালিকা), তাঁদের ছবি দিয়ে একবার Face যোগ করুন।</p><form id="enrollForm" class="mt-3 space-y-2"><input class="field" name="student_id" required maxlength="64" placeholder="Student ID, যেমন: STU-1001" autocomplete="off"><input class="field" id="enrollPhoto" type="file" accept="image/jpeg,image/png" required><button id="enrollBtn" class="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white py-2.5 font-semibold">Face যোগ করুন</button></form><div id="enrollMessage" class="mt-2 text-sm" role="status"></div></div>
     </section>
     <section class="card p-5 md:p-7">
-      <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm">CSV ডাউনলোড</button></div></div>
+      <div class="flex flex-wrap justify-between items-end gap-3 mb-5"><div><p class="text-sm font-bold text-emerald-600">আজকের রিপোর্ট</p><h2 class="text-2xl font-extrabold mt-1">উপস্থিত শিক্ষার্থী</h2><p id="reportDate" class="text-sm text-slate-500 mt-2"></p></div><div class="flex gap-2 items-center"><span id="countBadge" class="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-sm font-bold">0 জন</span><button id="csvBtn" disabled class="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-sm disabled:opacity-50">CSV ডাউনলোড</button></div></div>
       <div id="reportMessage" class="text-sm text-slate-500 mb-3"></div><div class="table-wrap rounded-xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th>Student ID</th><th>নাম</th><th>তারিখ</th><th>সময়</th><th>অবস্থা</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="5" class="text-center text-slate-500 py-8">লোড হচ্ছে…</td></tr></tbody></table></div>
       <p class="text-xs text-slate-400 mt-4">শিক্ষার্থীর তথ্য সীমিত প্রবেশাধিকারে রাখুন।</p>
     </section>
@@ -38,7 +47,19 @@
 <script>
   const API_BASE_URL = ""; // Render-এ একই origin. আলাদা Netlify site হলে এখানে Render URL দিন.
   const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
+  // Only the optional API_ACCESS_TOKEN goes here, NEVER the Supabase service key.
+  // sessionStorage survives reloads but clears when this tab closes; no URL token.
+  const TOKEN_KEY = 'attendance_api_token';
+  let apiToken = '';
+  try { apiToken = sessionStorage.getItem(TOKEN_KEY) || ''; } catch(e) {}
+  const authHeaders = () => apiToken ? {'Authorization': `Bearer ${apiToken}`} : {};
   const $ = id => document.getElementById(id);
+  const inputValue = (form, name) => form.elements.namedItem(name).value.trim();
+  function authRequired(){ $('authSettings').open=true;$('authStatus').textContent='API টোকেন প্রয়োজন বা সঠিক নয়।'; }
+  function checkAuth(response){if(response.status===401){authRequired();throw new Error('API টোকেন প্রয়োজন বা সঠিক নয়।')}return response}
+  $('authStatus').textContent=apiToken?'এই ট্যাবে টোকেন সেট আছে।':'টোকেন না লাগলে ফাঁকা রাখুন।';
+  $('authForm').addEventListener('submit',e=>{e.preventDefault();const token=$('authInput').value.trim();if(!token){$('authStatus').textContent='টোকেন লিখুন।';return}apiToken=token;try{sessionStorage.setItem(TOKEN_KEY,apiToken)}catch(e){}$('authInput').value='';$('authStatus').textContent='এই ট্যাবে টোকেন সেট আছে।';$('authSettings').open=false;loadAttendance()});
+  $('clearAuth').addEventListener('click',()=>{apiToken='';try{sessionStorage.removeItem(TOKEN_KEY)}catch(e){}$('authInput').value='';$('authStatus').textContent='টোকেন মুছে ফেলা হয়েছে।';loadAttendance()});
   let attendanceCache=[],cameraStream=null,capturedCanvas=null,modelsPromise=null,lastCardToken='';
   const modelOptions=()=>new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5});
   async function loadFaceModels(){
@@ -83,10 +104,12 @@
     e.preventDefault();const form=e.currentTarget,file=$('photoInput').files[0];if(!capturedCanvas&&!file){showMessage($('registerMessage'),'ছবি আপলোড করুন অথবা ওয়েবক্যাম থেকে ছবি তুলুন।',true);return}
     $('submitBtn').disabled=true;$('submitBtn').textContent='মুখ প্রসেস হচ্ছে…';
     try{
-      let source=capturedCanvas,objectUrl=null;
-      if(!source){objectUrl=URL.createObjectURL(file);source=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('ছবিটি খোলা যায়নি।'));img.src=objectUrl})}
-      const descriptor=await descriptorFrom(source);if(objectUrl)URL.revokeObjectURL(objectUrl);
-      const response=await fetch(`${API_BASE_URL}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:form.student_id.value.trim(),name:form.name.value.trim(),class_name:form.class_name.value.trim(),face_descriptor:descriptor})});
+      let source=capturedCanvas,objectUrl=null,descriptor;
+      try{
+        if(!source){objectUrl=URL.createObjectURL(file);source=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('ছবিটি খোলা যায়নি।'));img.src=objectUrl})}
+        descriptor=await descriptorFrom(source);
+      }finally{if(objectUrl)URL.revokeObjectURL(objectUrl)}
+      const response=checkAuth(await fetch(`${API_BASE_URL}/api/register`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({student_id:inputValue(form,'student_id'),name:inputValue(form,'name'),class_name:inputValue(form,'class_name'),face_descriptor:descriptor})}));
       const result=await response.json();if(!response.ok)throw new Error(result.detail||'রেজিস্ট্রেশন ব্যর্থ।');
       showMessage($('registerMessage'),`রেজিস্টার সফল: ${result.student_name} (face data এই ব্রাউজারেই তৈরি হয়েছে)`);
       const cardToken=result.card_token||result.student_id;lastCardToken=cardToken;$('qrcode').innerHTML='';new QRCode($('qrcode'),{text:cardToken,width:200,height:200,colorDark:'#14213d',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});$('qrName').textContent=result.student_name;$('qrId').textContent=`Student ID: ${result.student_id} • কার্ড: ${cardToken}`;$('qrCard').classList.remove('hidden');form.reset();capturedCanvas=null;loadAttendance();
@@ -98,11 +121,26 @@
   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   async function loadAttendance(){
     $('reportMessage').textContent='রিপোর্ট লোড হচ্ছে…';
-    try{const response=await fetch(`${API_BASE_URL}/api/attendance`),data=await response.json();if(!response.ok)throw new Error(data.detail||'রিপোর্ট পাওয়া যায়নি');attendanceCache=data;$('reportDate').textContent=`তারিখ: ${new Intl.DateTimeFormat('bn-BD',{dateStyle:'full'}).format(new Date())}`;$('countBadge').textContent=`${data.length} জন`;
+    try{const response=checkAuth(await fetch(`${API_BASE_URL}/api/attendance`,{headers:authHeaders()})),data=await response.json();if(!response.ok)throw new Error(data.detail||'রিপোর্ট পাওয়া যায়নি');attendanceCache=data;$('csvBtn').disabled=false;$('reportDate').textContent=`তারিখ: ${new Intl.DateTimeFormat('bn-BD',{dateStyle:'full',timeZone:'Asia/Dhaka'}).format(new Date())}`;$('countBadge').textContent=`${data.length} জন`;
       $('attendanceRows').innerHTML=data.length?data.map(r=>`<tr><td class="font-mono font-semibold">${escapeHtml(r.student_id)}</td><td class="font-semibold">${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td><span class="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">${escapeHtml(r.status)}</span></td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-slate-500 py-8">আজ এখনো কোনো উপস্থিতি নেই।</td></tr>';$('reportMessage').textContent='';
-    }catch(err){$('reportMessage').textContent=err.message+' (Render/API status পরীক্ষা করুন)';$('reportMessage').className='text-sm text-red-600 mb-3'}
+    }catch(err){attendanceCache=[];$('csvBtn').disabled=true;$('countBadge').textContent='0 জন';$('attendanceRows').innerHTML='<tr><td colspan="5" class="text-center text-slate-500 py-8">রিপোর্ট লোড করা যায়নি।</td></tr>';$('reportMessage').textContent=err.message;$('reportMessage').className='text-sm text-red-600 mb-3'}
   }
-  $('csvBtn').addEventListener('click',()=>{const rows=[['Student ID','Name','Date','Time','Status'],...attendanceCache.map(r=>[r.student_id,r.name,r.date,r.time,r.status])],csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`attendance-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href)});
+  function dhakaDate(){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-')}
+  function csvCell(value){
+    const text=String(value??'');
+    // Excel can execute formulas even in quoted CSV fields; force text for
+    // untrusted student IDs/names that start with a formula prefix.
+    const safe=/^\s*[=+\-@]/.test(text)?"'"+text:text;
+    return '"'+safe.replace(/"/g,'""')+'"';
+  }
+  $('csvBtn').addEventListener('click',()=>{
+    const rows=[['Student ID','Name','Date','Time','Status'],...attendanceCache.map(r=>[r.student_id,r.name,r.date,r.time,r.status])];
+    const csv='\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
+    const link=document.createElement('a'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    link.href=url;link.download=`attendance-${dhakaDate()}.csv`;
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
   $('enrollForm').addEventListener('submit',async e=>{
     e.preventDefault();const form=e.currentTarget,file=$('enrollPhoto').files[0];
     if(!file){showMessage($('enrollMessage'),'ছবি বেছে নিন।',true);return}
@@ -112,7 +150,7 @@
       objectUrl=URL.createObjectURL(file);
       const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(new Error('ছবিটি খোলা যায়নি।'));i.src=objectUrl});
       const descriptor=await descriptorFrom(img);
-      const response=await fetch(`${API_BASE_URL}/api/enroll-face`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:form.student_id.value.trim(),face_descriptor:descriptor})});
+      const response=checkAuth(await fetch(`${API_BASE_URL}/api/enroll-face`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({student_id:inputValue(form,'student_id'),face_descriptor:descriptor})}));
       const result=await response.json();if(!response.ok)throw new Error(result.detail||'Face যোগ করা যায়নি।');
       showMessage($('enrollMessage'),`Face যোগ হয়েছে: ${result.student_id}`);
       form.reset();
@@ -122,9 +160,10 @@
   async function loadHealth(){
     const badge=$('storeBadge');
     try{
-      const response=await fetch(`${API_BASE_URL}/health`),data=await response.json();
+      const response=await fetch(`${API_BASE_URL}/health`);if(!response.ok)throw new Error('Health check failed');const data=await response.json();
+      if(data.auth_required&&!apiToken)authRequired();
       const supa=data.storage==='supabase';
-      badge.textContent=supa?'● Supabase সংযুক্ত':'● লোকাল SQLite';
+      badge.textContent=supa?'● Supabase ব্যাকএন্ড':'● লোকাল SQLite';
       badge.className=`rounded-full px-3 py-1.5 text-xs font-bold ${supa?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'}`;
     }catch(e){badge.textContent='● সার্ভারে সংযোগ নেই';badge.className='rounded-full bg-red-50 text-red-600 px-3 py-1.5 text-xs font-bold'}
   }

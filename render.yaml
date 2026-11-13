@@ -8,7 +8,14 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.2
+      # Public project URL is safe to track; the privileged key is not.
       - key: SUPABASE_URL
-        sync: false
+        value: https://nojpjuowrhinkxpzumum.supabase.co
       - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # Render generates a private random token if none exists. Find its value
+      # in the service's Environment tab to enter it in /admin and /scanner.
+      - key: API_ACCESS_TOKEN
+        generateValue: true
+      - key: CORS_ORIGINS
         sync: false

@@ -1,15 +1,15 @@
-"""School attendance API with browser-side face matching (no paid face API/key).
+"""School attendance API with browser-side face extraction (no paid face API).
 
-Faces are processed in the browser. Only a 128-number face descriptor is sent to
-this server; original face images are not uploaded or saved. Descriptors are still
-biometric data and must be protected and used only with appropriate consent.
+Face images are processed in the browser. Only a 128-number descriptor is sent
+to the server, which compares it against the stored descriptor. Original face
+images are not uploaded or saved. Descriptors are still biometric data and
+must be protected and used only with appropriate consent.
 
 Storage: Supabase Postgres when SUPABASE_URL + SUPABASE_SERVICE_KEY are set,
 otherwise a local SQLite file (see storage.py).
 """
 from __future__ import annotations
 
-import json
 import math
 import os
 from datetime import date, datetime
@@ -28,13 +28,21 @@ from storage import (
     StorageError,
     build_store,
     descriptor_has_expired,
+    normalize_descriptor,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
 DISTANCE_THRESHOLD = float(os.getenv("FACE_DISTANCE_THRESHOLD", "0.50"))
+if not math.isfinite(DISTANCE_THRESHOLD) or DISTANCE_THRESHOLD <= 0:
+    raise ValueError("FACE_DISTANCE_THRESHOLD must be a finite positive number")
 DST = ZoneInfo("Asia/Dhaka")
 
 store = build_store()
+if os.getenv("RENDER", "").lower() == "true" and not os.getenv("API_ACCESS_TOKEN", "").strip():
+    raise RuntimeError(
+        "Render-এ API_ACCESS_TOKEN দরকার। Render Environment-এ একটি শক্তিশালী "
+        "টোকেন দিন বা Blueprint-এর generateValue ব্যবহার করুন।"
+    )
 
 app = FastAPI(title="School Attendance", version="3.0.0")
 app.add_middleware(
@@ -75,9 +83,10 @@ class FaceEnrollment(BaseModel):
 
 
 def checked_descriptor(values: list[float]) -> list[float]:
-    if len(values) != 128 or not all(math.isfinite(float(v)) for v in values):
+    descriptor = normalize_descriptor(values)
+    if not descriptor:
         raise HTTPException(status_code=422, detail="মুখের descriptor সঠিক নয়। ছবি আবার তুলুন।")
-    return [float(v) for v in values]
+    return descriptor
 
 
 def today_dhaka() -> datetime:
@@ -85,20 +94,8 @@ def today_dhaka() -> datetime:
 
 
 def parse_descriptor(raw: object) -> list[float]:
-    """Supabase returns jsonb as a list; SQLite stores it as a JSON string."""
-    if raw is None:
-        return []
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-    if not isinstance(raw, list):
-        return []
-    try:
-        return checked_descriptor(raw)
-    except HTTPException:
-        return []
+    """Supabase returns jsonb; SQLite stores JSON text. Both may be corrupt."""
+    return normalize_descriptor(raw)
 
 
 @app.get("/")
@@ -130,9 +127,11 @@ def scanner_html():
 def health():
     return {
         "status": "ok",
-        "face_matching": "browser-local",
+        "face_extraction": "browser-local",
+        "face_matching": "server-descriptor-distance",
         "storage": store.describe(),
         "timezone": "Asia/Dhaka",
+        "auth_required": bool(os.getenv("API_ACCESS_TOKEN", "").strip()),
     }
 
 
@@ -155,11 +154,17 @@ def register_student(payload: StudentRegistration):
 @app.post("/api/enroll-face", dependencies=[Depends(auth)])
 def enroll_face(payload: FaceEnrollment):
     """Attach a face descriptor to a student who was registered without one."""
-    student_id = payload.student_id.strip()
+    code = payload.student_id.strip()
+    if not code:
+        raise HTTPException(status_code=422, detail="Student ID বা কার্ড দিন।")
     descriptor = checked_descriptor(payload.face_descriptor)
     try:
-        if not store.find_student(student_id):
+        # find_student matches Student ID or card token; enroll by the real ID
+        # so passing a card token works too.
+        student = store.find_student(code)
+        if not student:
             raise HTTPException(status_code=404, detail="Student ID পাওয়া যায়নি।")
+        student_id = student["student_id"]
         if not store.enroll_face(student_id, descriptor):
             raise HTTPException(status_code=404, detail="Student ID পাওয়া যায়নি।")
     except StorageError as exc:
@@ -170,6 +175,8 @@ def enroll_face(payload: FaceEnrollment):
 @app.post("/api/verify-attendance", dependencies=[Depends(auth)])
 def verify_attendance(payload: AttendanceCheck):
     code = payload.student_id.strip()
+    if not code:
+        raise HTTPException(status_code=422, detail="Student ID বা কার্ড দিন।")
     probe = checked_descriptor(payload.face_descriptor)
     try:
         student = store.find_student(code)
@@ -215,7 +222,8 @@ def verify_attendance(payload: AttendanceCheck):
 def get_attendance(day: str | None = None):
     target = day or today_dhaka().strftime("%Y-%m-%d")
     try:
-        date.fromisoformat(target)
+        if date.fromisoformat(target).isoformat() != target:
+            raise ValueError("not YYYY-MM-DD")
     except ValueError:
         raise HTTPException(status_code=422, detail="তারিখ YYYY-MM-DD ফরম্যাটে দিন।") from None
     try:

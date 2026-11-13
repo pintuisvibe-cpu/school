@@ -17,6 +17,14 @@
     #brand{font-weight:900;letter-spacing:.04em;font-size:18px}
     #brand span{color:#6ee7b7}
     #statusText{margin:6px 0 0;font-size:14px;color:#ffffffcc}
+    #brand{padding-right:100px}
+    #tokenSettings{position:absolute;right:18px;top:16px;pointer-events:auto}
+    #tokenSettings summary{list-style:none;cursor:pointer;border:1px solid #ffffff88;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;background:#08111dd9}
+    #tokenSettings form{position:absolute;right:0;top:calc(100% + 8px);width:min(88vw,300px);background:#122136;border:1px solid #475569;border-radius:14px;padding:16px;box-shadow:0 8px 30px #000b}
+    #tokenSettings label,#tokenSettings p{display:block;font-size:13px;line-height:1.5;margin:0 0 9px}
+    #tokenSettings input{width:100%;border:1px solid #94a3b8;border-radius:9px;padding:10px;color:#0f172a;background:white;margin-bottom:10px}
+    #tokenSettings button{border:0;border-radius:9px;padding:9px 12px;background:#2563eb;color:white;font-weight:700;margin-right:8px}
+    #tokenSettings #clearToken{background:#475569}
     #resultOverlay{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;text-align:center;padding:28px}
     #startPanel{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#020617;padding:28px;text-align:center}
     #startPanel.show{display:flex}
@@ -30,7 +38,14 @@
 </head>
 <body>
   <div id="qr-reader"></div>
-  <header id="topBar"><div id="brand">SCHOOL GATE <span>• ATTENDANCE</span></div><p id="statusText">ক্যামেরা চালু হচ্ছে…</p></header>
+  <header id="topBar"><div id="brand">SCHOOL GATE <span>• ATTENDANCE</span></div><p id="statusText">ক্যামেরা চালু হচ্ছে…</p>
+    <details id="tokenSettings"><summary>API টোকেন</summary><form id="tokenForm">
+      <label for="tokenInput">API_ACCESS_TOKEN (Supabase key নয়)</label>
+      <input id="tokenInput" type="password" autocomplete="off" placeholder="API টোকেন লিখুন">
+      <p id="tokenStatus" role="status"></p>
+      <button type="submit">সেট করুন</button><button id="clearToken" type="button">মুছুন</button>
+    </form></details>
+  </header>
   <div class="viewfinder"></div>
   <div id="resultOverlay"><div><div id="resultIcon" style="font-size:72px;margin-bottom:20px">✓</div><h1 id="resultTitle" style="font-size:clamp(34px,9vw,56px);font-weight:900;line-height:1.1"></h1><p id="resultDetail" style="margin-top:16px;font-size:18px;color:#ffffffe6"></p></div></div>
   <div id="startPanel"><div><h1>ক্যামেরা চালু হয়নি</h1><p id="startError"></p><button id="startBtn" type="button">আবার চেষ্টা করুন</button><p id="startNote">ক্যামেরার জন্য HTTPS লিংক ও camera permission দরকার। প্রথমবার face model ডাউনলোডে ইন্টারনেট দরকার।</p></div></div>
@@ -38,7 +53,17 @@
 <script>
   const API_BASE_URL = ""; // Same-origin /scanner route. অন্য host-এ হোস্ট করলে সেই API URL বসান.
   const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model";
+  // Only the optional API_ACCESS_TOKEN goes here, NEVER the Supabase service key.
+  // sessionStorage survives reloads but clears when this tab closes; no URL token.
+  const TOKEN_KEY = 'attendance_api_token';
+  let apiToken = '';
+  try { apiToken = sessionStorage.getItem(TOKEN_KEY) || ''; } catch(e) {}
+  const authHeaders = () => apiToken ? {'Authorization': `Bearer ${apiToken}`} : {};
   const $ = id => document.getElementById(id);
+  $('tokenStatus').textContent=apiToken?'এই ট্যাবে টোকেন সেট আছে।':'টোকেন না লাগলে ফাঁকা রাখুন।';
+  $('tokenForm').addEventListener('submit',e=>{e.preventDefault();const token=$('tokenInput').value.trim();if(!token){$('tokenStatus').textContent='টোকেন লিখুন।';return}apiToken=token;try{sessionStorage.setItem(TOKEN_KEY,apiToken)}catch(e){}$('tokenInput').value='';$('tokenStatus').textContent='এই ট্যাবে টোকেন সেট আছে।';$('tokenSettings').open=false});
+  $('clearToken').addEventListener('click',()=>{apiToken='';try{sessionStorage.removeItem(TOKEN_KEY)}catch(e){}$('tokenInput').value='';$('tokenStatus').textContent='টোকেন মুছে ফেলা হয়েছে।'});
+  fetch(`${API_BASE_URL}/health`).then(r=>r.ok?r.json():null).then(data=>{if(data?.auth_required&&!apiToken){$('tokenSettings').open=true;$('tokenStatus').textContent='স্ক্যান করার আগে API টোকেন দিন।'}}).catch(()=>{});
   let scanner = null, starting = null, locked = false, resetTimer = null, audioContext = null, modelsPromise = null;
 
   // Models load in the background after the camera starts. A failed load is cleared so the next scan retries.
@@ -81,9 +106,13 @@
     return Array.from(faces[0].descriptor);
   }
   async function handleQr(qrText){
-    if(locked)return;locked=true;$('statusText').textContent='QR পড়া হয়েছে • মুখ যাচাই হচ্ছে…';try{scanner.pause(false)}catch(e){}
+    if(locked||$('tokenSettings').open)return;locked=true;$('statusText').textContent='QR পড়া হয়েছে • মুখ যাচাই হচ্ছে…';
+    // Pause QR decoding, not the video: html5-qrcode's pause(false) keeps
+    // frames flowing so descriptorFromLiveVideo can still read the face.
+    try{scanner.pause(false)}catch(e){}
     try{
-      const descriptor=await descriptorFromLiveVideo();const response=await fetch(`${API_BASE_URL}/api/verify-attendance`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:qrText.trim(),face_descriptor:descriptor})});let result={};try{result=await response.json()}catch(e){}
+      const descriptor=await descriptorFromLiveVideo();const response=await fetch(`${API_BASE_URL}/api/verify-attendance`,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({student_id:qrText.trim(),face_descriptor:descriptor})});let result={};try{result=await response.json()}catch(e){}
+      if(response.status===401){$('tokenSettings').open=true;$('tokenStatus').textContent='API টোকেন প্রয়োজন বা সঠিক নয়।';showResult(false,'API টোকেন দিন','উপরের ডানদিকে API টোকেন সেট করুন।');return}
       if(response.ok&&result.status==='success')showResult(true,`Present: ${result.student_name}`,`সময়: ${result.time||''}`);else{const reason=result.reason||result.detail||'Face Mismatch!';showResult(false,reason==='Face Mismatch!'?'Face Mismatch!':'যাচাই ব্যর্থ',reason)}
     }catch(e){showResult(false,'যাচাই করা যায়নি',e.message||'নেটওয়ার্ক/ক্যামেরা সমস্যা।')}
   }
@@ -97,7 +126,8 @@
       if(!window.isSecureContext)throw new Error('InsecureContext');
       if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('NoMediaDevices');
       if(!scanner)scanner=new Html5Qrcode('qr-reader',{verbose:false,formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]});
-      const config={fps:12,qrbox:(w,h)=>{const s=Math.floor(Math.min(w,h)*.68);return{width:s,height:s}},aspectRatio:1,disableFlip:true};
+      // Keep mirrored QR detection enabled for the front-camera fallback.
+      const config={fps:12,qrbox:(w,h)=>{const s=Math.floor(Math.min(w,h)*.68);return{width:s,height:s}},aspectRatio:1};
       try{
         await scanner.start({facingMode:'environment'},config,handleQr,()=>{});
       }catch(e){
