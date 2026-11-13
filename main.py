@@ -68,6 +68,8 @@ class StudentRegistration(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     class_name: str = Field(min_length=1, max_length=80)
     face_descriptor: list[float]
+    section: str = Field(default="", max_length=40)
+    roll_no: str = Field(default="", max_length=40)
 
 
 class AttendanceCheck(BaseModel):
@@ -140,11 +142,27 @@ def register_student(payload: StudentRegistration):
     student_id = payload.student_id.strip()
     name = payload.name.strip()
     class_name = payload.class_name.strip()
+    section = payload.section.strip()
+    roll_no = payload.roll_no.strip()
     if not student_id or not name or not class_name:
         raise HTTPException(status_code=422, detail="Student ID, নাম ও শ্রেণি পূরণ করুন।")
     descriptor = checked_descriptor(payload.face_descriptor)
+    metadata = {}
+    if section:
+        metadata["section"] = section
+    if roll_no:
+        metadata["roll_no"] = roll_no
     try:
-        return {"status": "success", **store.register_student(student_id, name, class_name, descriptor)}
+        created = store.register_student(
+            student_id, name, class_name, descriptor, metadata=metadata or None
+        )
+        return {
+            "status": "success",
+            "class_name": class_name,
+            "section": section,
+            "roll_no": roll_no,
+            **created,
+        }
     except DuplicateStudent:
         raise HTTPException(status_code=409, detail="এই Student ID আগে থেকেই নিবন্ধিত।") from None
     except StorageError as exc:
@@ -239,3 +257,8 @@ def get_students():
         return store.list_students()
     except StorageError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/school-settings", dependencies=[Depends(auth)])
+def get_school_settings():
+    return store.school_settings()
