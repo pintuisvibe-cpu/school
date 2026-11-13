@@ -28,6 +28,18 @@ import requests
 
 DHAKA = ZoneInfo("Asia/Dhaka")
 MAX_DESCRIPTOR_COMPONENT = 10.0
+DEFAULT_SCHOOL_SETTINGS = {
+    "school_name": "স্কুল অ্যাটেনডেন্স",
+    "school_name_en": "School Attendance",
+    "eiin": "",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "theme_color": "#1d4ed8",
+    "principal_name": "",
+    "session": "",
+    "card_valid_until": "",
+}
 
 
 def normalize_descriptor(raw: Any) -> list[float]:
@@ -272,6 +284,27 @@ class SupabaseStore:
             },
         )
 
+    def school_settings(self) -> dict[str, Any]:
+        defaults = {**DEFAULT_SCHOOL_SETTINGS, "session": str(datetime.now(DHAKA).year)}
+        try:
+            rows = self._request(
+                "GET",
+                "school_settings",
+                params={
+                    "select": (
+                        "school_name,school_name_en,eiin,address,phone,email,"
+                        "theme_color,principal_name,session,card_valid_until"
+                    ),
+                    "limit": "1",
+                },
+            )
+        except StorageError:
+            return defaults
+        if not rows:
+            return defaults
+        row = rows[0]
+        return {key: (row.get(key) or defaults[key]) for key in defaults}
+
     @staticmethod
     def _public_row(row: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -283,6 +316,7 @@ class SupabaseStore:
             "card_token": row.get("card_token") or "",
             "active": row.get("active", True),
             "valid_until": row.get("valid_until") or "",
+            "session": row.get("session") or "",
             "has_face": bool(normalize_descriptor(row.get("face_descriptor"))),
         }
 
@@ -435,7 +469,7 @@ class SqliteStore:
         with self._lock, self._connect() as conn:
             rows = conn.execute(
                 "SELECT student_id,name,class_name,section,roll_no,card_token,face_descriptor,"
-                "active,valid_until FROM students "
+                "active,valid_until,session FROM students "
                 "ORDER BY class_name, name"
             ).fetchall()
         return [
@@ -448,6 +482,7 @@ class SqliteStore:
                 "card_token": row["card_token"],
                 "active": bool(row["active"]),
                 "valid_until": row["valid_until"] or "",
+                "session": row["session"] or "",
                 "has_face": bool(normalize_descriptor(row["face_descriptor"])),
             }
             for row in rows
@@ -483,6 +518,9 @@ class SqliteStore:
                 (day,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def school_settings(self) -> dict[str, Any]:
+        return {**DEFAULT_SCHOOL_SETTINGS, "session": str(datetime.now(DHAKA).year)}
 
 
 def build_store() -> SupabaseStore | SqliteStore:
