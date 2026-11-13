@@ -14,6 +14,7 @@ active. Errors are translated into a few storage-level exceptions.
 from __future__ import annotations
 
 import json
+import math
 import os
 import secrets
 import sqlite3
@@ -21,8 +22,31 @@ import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
+
+DHAKA = ZoneInfo("Asia/Dhaka")
+MAX_DESCRIPTOR_COMPONENT = 10.0
+
+
+def normalize_descriptor(raw: Any) -> list[float]:
+    """Parse browser / Supabase / SQLite faces; reject corrupt or unsafe data."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    if not isinstance(raw, list) or len(raw) != 128:
+        return []
+    try:
+        values = [float(value) for value in raw]
+    except (ValueError, TypeError, OverflowError):
+        return []
+    # face-api components are small. Huge values could overflow when squared
+    # during distance calculation, or produce a non-JSON Inf result.
+    return values if all(math.isfinite(v) and abs(v) <= MAX_DESCRIPTOR_COMPONENT for v in values) else []
+
 
 # PostgREST treats commas, dots, colons and parentheses as filter syntax, so
 # values containing them must be double-quoted inside an ``eq.`` filter.
@@ -42,6 +66,7 @@ STUDENT_FIELDS = (
     "student_id,name,class_name,section,roll_no,card_token,"
     "face_descriptor,active,valid_until,session"
 )
+PAGE_SIZE = 500  # Under the usual PostgREST max_rows limit (1,000).
 
 
 class StorageError(RuntimeError):
@@ -76,6 +101,8 @@ class SupabaseStore:
     name = "supabase"
 
     def __init__(self, url: str, service_key: str) -> None:
+        if service_key.startswith("sb_publishable_"):
+            raise ValueError("SUPABASE_SERVICE_KEY-তে publishable key নয়, sb_secret_ বা service_role key দিন।")
         self.rest_url = url.rstrip("/") + "/rest/v1"
         self.service_key = service_key
 
@@ -91,11 +118,15 @@ class SupabaseStore:
     ) -> list[dict[str, Any]]:
         headers = {
             "apikey": self.service_key,
-            "Authorization": f"Bearer {self.service_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Prefer": prefer,
         }
+        # New sb_secret_ keys are NOT JWTs. Sending them in Authorization:
+        # Bearer makes PostgREST reject the request; legacy service_role JWTs
+        # still need the Bearer header for RLS bypass.
+        if not self.service_key.startswith("sb_"):
+            headers["Authorization"] = f"Bearer {self.service_key}"
         try:
             response = requests.request(
                 method,
@@ -126,7 +157,20 @@ class SupabaseStore:
             raise StorageError("Supabase থেকে ভুল response পাওয়া গেছে।") from exc
         if isinstance(data, dict):  # pragma: no cover - defensive
             return [data]
+        if not isinstance(data, list):
+            raise StorageError("Supabase থেকে ভুল response পাওয়া গেছে।")
         return data
+
+    def _all_rows(self, table: str, params: dict[str, str]) -> list[dict[str, Any]]:
+        """PostgREST caps result sets; fetch every page for reports and lists."""
+        rows: list[dict[str, Any]] = []
+        while True:
+            page = self._request("GET", table, params={
+                **params, "limit": str(PAGE_SIZE), "offset": str(len(rows)),
+            })
+            rows.extend(page)
+            if len(page) < PAGE_SIZE:
+                return rows
 
     # -- interface ---------------------------------------------------------
     def describe(self) -> str:
@@ -139,16 +183,28 @@ class SupabaseStore:
         class_name: str,
         descriptor: list[float],
         card_token: str | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        # Always generate an opaque card token server-side (like SQLite does).
+        # Relying on a DB default would silently fall back to the Student ID
+        # as the QR payload, defeating the purpose of the opaque token.
+        token = card_token or secrets.token_hex(9)
         payload = {
             "student_id": student_id,
             "name": name,
             "class_name": class_name,
-            "face_descriptor": descriptor,
-            "session": str(datetime.now().year),
+            # Empty list means "no face yet"; enroll-face can add it later.
+            "face_descriptor": descriptor or None,
+            "card_token": token,
+            "session": str(datetime.now(DHAKA).year),
         }
-        if card_token:
-            payload["card_token"] = card_token
+        # Used by the SQLite migration; do not overwrite the DB defaults
+        # for fields that were not present in the source database.
+        if metadata:
+            payload.update({key: metadata[key] for key in (
+                "section", "roll_no", "active", "valid_until", "session"
+            ) if key in metadata})
         try:
             rows = self._request("POST", "students", json_body=payload)
         except DuplicateStudent:
@@ -159,7 +215,7 @@ class SupabaseStore:
         return {
             "student_id": row["student_id"],
             "student_name": row["name"],
-            "card_token": row.get("card_token") or row["student_id"],
+            "card_token": row.get("card_token") or token,
         }
 
     def find_student(self, key: str) -> dict[str, Any] | None:
@@ -174,13 +230,9 @@ class SupabaseStore:
         return None
 
     def list_students(self) -> list[dict[str, Any]]:
-        rows = self._request(
-            "GET",
+        rows = self._all_rows(
             "students",
-            params={
-                "select": STUDENT_FIELDS,
-                "order": "class_name.asc,name.asc",
-            },
+            {"select": STUDENT_FIELDS, "order": "class_name.asc,name.asc,student_id.asc"},
         )
         return [self._public_row(row) for row in rows]
 
@@ -194,15 +246,16 @@ class SupabaseStore:
         return bool(rows)
 
     def record_attendance(
-        self, student_id: str, name: str, day: str, clock: str
+        self, student_id: str, name: str, day: str, clock: str,
+        status: str = "Present", method: str = "face+qr",
     ) -> None:
         payload = {
             "student_id": student_id,
             "name": name,
             "date": day,
             "time": clock,
-            "status": "Present",
-            "method": "face+qr",
+            "status": status,
+            "method": method,
         }
         try:
             self._request("POST", "attendance", json_body=payload)
@@ -210,20 +263,17 @@ class SupabaseStore:
             raise DuplicateAttendance(student_id) from None
 
     def attendance_for(self, day: str) -> list[dict[str, Any]]:
-        rows = self._request(
-            "GET",
+        return self._all_rows(
             "attendance",
-            params={
+            {
                 "select": "student_id,name,date,time,status,method",
                 "date": f"eq.{day}",
-                "order": "time.desc",
+                "order": "time.desc,student_id.asc",
             },
         )
-        return rows
 
     @staticmethod
     def _public_row(row: dict[str, Any]) -> dict[str, Any]:
-        descriptor = row.get("face_descriptor")
         return {
             "student_id": row["student_id"],
             "name": row["name"],
@@ -233,7 +283,7 @@ class SupabaseStore:
             "card_token": row.get("card_token") or "",
             "active": row.get("active", True),
             "valid_until": row.get("valid_until") or "",
-            "has_face": bool(descriptor),
+            "has_face": bool(normalize_descriptor(row.get("face_descriptor"))),
         }
 
 
@@ -262,9 +312,14 @@ class SqliteStore:
                     student_id TEXT NOT NULL UNIQUE,
                     name TEXT NOT NULL,
                     class_name TEXT NOT NULL,
+                    section TEXT NOT NULL DEFAULT '',
+                    roll_no TEXT NOT NULL DEFAULT '',
                     photo_path TEXT NOT NULL DEFAULT '',
                     face_descriptor TEXT,
-                    card_token TEXT NOT NULL DEFAULT ''
+                    card_token TEXT NOT NULL DEFAULT '',
+                    active INTEGER NOT NULL DEFAULT 1,
+                    valid_until TEXT NOT NULL DEFAULT '',
+                    session TEXT NOT NULL DEFAULT ''
                 )"""
             )
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(students)")}
@@ -274,6 +329,18 @@ class SqliteStore:
                 conn.execute("ALTER TABLE students ADD COLUMN photo_path TEXT NOT NULL DEFAULT ''")
             if "card_token" not in columns:
                 conn.execute("ALTER TABLE students ADD COLUMN card_token TEXT NOT NULL DEFAULT ''")
+            # Keep SQLite in parity with Supabase so deactivation / expiry /
+            # section / roll work the same in both backends.
+            if "section" not in columns:
+                conn.execute("ALTER TABLE students ADD COLUMN section TEXT NOT NULL DEFAULT ''")
+            if "roll_no" not in columns:
+                conn.execute("ALTER TABLE students ADD COLUMN roll_no TEXT NOT NULL DEFAULT ''")
+            if "active" not in columns:
+                conn.execute("ALTER TABLE students ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+            if "valid_until" not in columns:
+                conn.execute("ALTER TABLE students ADD COLUMN valid_until TEXT NOT NULL DEFAULT ''")
+            if "session" not in columns:
+                conn.execute("ALTER TABLE students ADD COLUMN session TEXT NOT NULL DEFAULT ''")
             # Backfill tokens for rows created before cards were introduced.
             for row in conn.execute(
                 "SELECT student_id FROM students WHERE card_token='' OR card_token IS NULL"
@@ -319,20 +386,29 @@ class SqliteStore:
         class_name: str,
         descriptor: list[float],
         card_token: str | None = None,
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         token = card_token or secrets.token_hex(9)
+        metadata = metadata or {}
         with self._lock, self._connect() as conn:
             try:
                 conn.execute(
-                    "INSERT INTO students(student_id,name,class_name,photo_path,face_descriptor,card_token) "
-                    "VALUES(?,?,?,?,?,?)",
+                    "INSERT INTO students(student_id,name,class_name,section,roll_no,photo_path,"
+                    "face_descriptor,card_token,active,valid_until,session) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         student_id,
                         name,
                         class_name,
+                        metadata.get("section") or "",
+                        metadata.get("roll_no") or "",
                         "",
-                        json.dumps(descriptor, separators=(",", ":")),
+                        json.dumps(descriptor, separators=(",", ":")) if descriptor else None,
                         token,
+                        int(metadata.get("active", True)),
+                        metadata.get("valid_until") or "",
+                        metadata.get("session") or str(datetime.now(DHAKA).year),
                     ),
                 )
             except sqlite3.IntegrityError:
@@ -342,16 +418,24 @@ class SqliteStore:
     def find_student(self, key: str) -> dict[str, Any] | None:
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                "SELECT student_id,name,class_name,face_descriptor,card_token FROM students "
-                "WHERE student_id=? OR card_token=? LIMIT 1",
-                (key, key),
+                "SELECT student_id,name,class_name,section,roll_no,face_descriptor,card_token,"
+                "active,valid_until,session FROM students "
+                "WHERE student_id=? OR card_token=? "
+                "ORDER BY CASE WHEN student_id=? THEN 0 ELSE 1 END LIMIT 1",
+                (key, key, key),
             ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        # SQLite stores booleans as 0/1; main.py checks `is False`, so convert.
+        result["active"] = bool(result.get("active", 1))
+        return result
 
     def list_students(self) -> list[dict[str, Any]]:
         with self._lock, self._connect() as conn:
             rows = conn.execute(
-                "SELECT student_id,name,class_name,card_token,face_descriptor FROM students "
+                "SELECT student_id,name,class_name,section,roll_no,card_token,face_descriptor,"
+                "active,valid_until FROM students "
                 "ORDER BY class_name, name"
             ).fetchall()
         return [
@@ -359,12 +443,12 @@ class SqliteStore:
                 "student_id": row["student_id"],
                 "name": row["name"],
                 "class_name": row["class_name"],
-                "section": "",
-                "roll_no": "",
+                "section": row["section"] or "",
+                "roll_no": row["roll_no"] or "",
                 "card_token": row["card_token"],
-                "active": True,
-                "valid_until": "",
-                "has_face": bool(row["face_descriptor"]),
+                "active": bool(row["active"]),
+                "valid_until": row["valid_until"] or "",
+                "has_face": bool(normalize_descriptor(row["face_descriptor"])),
             }
             for row in rows
         ]
@@ -378,14 +462,15 @@ class SqliteStore:
         return cursor.rowcount > 0
 
     def record_attendance(
-        self, student_id: str, name: str, day: str, clock: str
+        self, student_id: str, name: str, day: str, clock: str,
+        status: str = "Present", method: str = "face+qr",
     ) -> None:
         with self._lock, self._connect() as conn:
             try:
                 conn.execute(
                     "INSERT INTO attendance(student_id,name,date,time,status,method) "
                     "VALUES(?,?,?,?,?,?)",
-                    (student_id, name, day, clock, "Present", "face+qr"),
+                    (student_id, name, day, clock, status, method),
                 )
             except sqlite3.IntegrityError:
                 raise DuplicateAttendance(student_id) from None
@@ -415,6 +500,16 @@ def build_store() -> SupabaseStore | SqliteStore:
             "SUPABASE_URL দেওয়া আছে কিন্তু SUPABASE_SERVICE_KEY নেই। "
             "অথবা দুটোই বাদ দিন, তাহলে লোকাল SQLite ব্যবহার হবে।"
         )
+    if key and not url:
+        raise RuntimeError(
+            "SUPABASE_SERVICE_KEY দেওয়া আছে কিন্তু SUPABASE_URL নেই। "
+            "অথবা দুটোই বাদ দিন, তাহলে লোকাল SQLite ব্যবহার হবে।"
+        )
+    if os.getenv("RENDER", "").lower() == "true":
+        raise RuntimeError(
+            "Render-এ SQLite অস্থায়ী; SUPABASE_URL এবং SUPABASE_SERVICE_KEY "
+            "Environment-এ সেট করুন, তারপর deploy করুন।"
+        )
     base_dir = Path(__file__).resolve().parent
     data_dir = Path(os.getenv("DATA_DIR", str(base_dir))).expanduser()
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -426,6 +521,8 @@ def descriptor_has_expired(valid_until: str, today: date) -> bool:
     if not valid_until:
         return False
     try:
-        return date.fromisoformat(valid_until) < today
+        parsed = date.fromisoformat(valid_until)
+        return parsed.isoformat() != valid_until or parsed < today
     except ValueError:
-        return False
+        # Corrupt expiry dates must not grant a card unlimited validity.
+        return True
